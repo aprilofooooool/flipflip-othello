@@ -175,16 +175,7 @@
     return ctx.aborted;
   }
 
-  // Terminal value from w.turn's view when neither side can move: raw disc difference when
-  // `exact`, otherwise the evaluation's game-over value.
-  function terminalValue(w, exact) {
-    if (!exact) { return evalCells(w.size, w.cells, w.turn); }
-    var d = 0;
-    for (var i = 0; i < w.cells.length; i++) { d += w.cells[i] * w.turn; }
-    return d;
-  }
-
-  // Negamax with alpha-beta. exact: unlimited depth, disc difference only (depth is ignored).
+  // Negamax with alpha-beta. exact: unlimited depth, game-over values only (depth is ignored).
   function negamax(w, depth, alpha, beta, exact) {
     if (tick()) { return 0; }
     if (!exact && depth === 0) { return evalCells(w.size, w.cells, w.turn); }
@@ -202,7 +193,7 @@
         w.turn = -w.turn;
       } else {
         w.turn = -w.turn;
-        v = terminalValue(w, exact);
+        v = evalCells(w.size, w.cells, w.turn); // game-over value, same scale as every other score
       }
       return v;
     }

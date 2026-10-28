@@ -77,7 +77,8 @@
       var other = passState(state);
       if (E.legalMoves(other).length === 0) {
         var n = E.countDiscs(state);
-        return state.turn === BLACK ? n.black - n.white : n.white - n.black;
+        var diff = state.turn === BLACK ? n.black - n.white : n.white - n.black;
+        return diff > 0 ? Otc.Const.WIN_SCORE + diff : (diff < 0 ? -Otc.Const.WIN_SCORE + diff : 0);
       }
       return -solveRef(other);
     }
@@ -180,6 +181,14 @@
         expect(r.score).toBe(solveRef(s));
         expect(r.timedOut).toBe(false);
       }
+    });
+
+    it('solved score and depth-limited score agree on a decided position', function () {
+      var rows = ['BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'WWWWWWWW'];
+      var s = E.stateFromRows(rows, BLACK);
+      var solved = AI.searchSync(s, { depth: 0, endgameEmpties: 64 }).score;
+      expect(solved).toBe(Otc.Const.WIN_SCORE + 48);
+      expect(solved).toBe(AI.searchSync(s, { depth: 3 }).score);
     });
 
     it('returns move null on a pass and keeps searching afterwards', function () {
