@@ -35,7 +35,7 @@ function checkExact(target, from) {
     const names = fs.readdirSync(cur);
     if (!names.includes(part)) {
       const hint = names.find((n) => n.toLowerCase() === part.toLowerCase());
-      problems.push(rel(from) + ': missing reference ' + target + (hint ? ' (case differs: ' + hint + ')' : ''));
+      problems.push(rel(from) + ': missing reference ' + (path.isAbsolute(target) ? rel(target) : target) + (hint ? ' (case differs: ' + hint + ')' : ''));
       return;
     }
     cur = path.join(cur, part);
@@ -73,15 +73,17 @@ if (exists(charsFile)) {
   const sandbox = {};
   sandbox.window = sandbox;
   const ctx = vm.createContext(sandbox);
-  let chars = null;
+  let chars;
+  let loaded = false;
   try {
     vm.runInContext(read(path.join(root, 'js', 'core', 'namespace.js')), ctx);
     vm.runInContext(read(charsFile), ctx, { filename: charsFile });
     chars = vm.runInContext('Otc.Characters', ctx);
+    loaded = true;
   } catch (e) {
     problems.push(rel(charsFile) + ': failed to load: ' + e.message);
   }
-  if (chars !== null) {
+  if (loaded) {
     const list = Array.isArray(chars) ? chars : (chars && typeof chars === 'object' ? Object.values(chars) : []);
     if (list.length === 0) {
       problems.push(rel(charsFile) + ': Otc.Characters is missing or empty');
