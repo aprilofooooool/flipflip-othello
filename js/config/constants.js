@@ -26,6 +26,8 @@
     SADNESS_FLIPS: 5,
     JOY_DELTA: 197,
     PANIC_DELTA: 331,
+    // Speech bubble: maximum characters per line (counted with Array.from).
+    BUBBLE_MAX_CHARS: 20,
     AI_LEVELS: {
       easy: { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 0.3 },
       normal: { depth: 3, timeMs: 1000, endgameEmpties: 8, randomRate: 0 },

@@ -20,14 +20,19 @@
 <script src="../js/core/storage.js"></script>
 <script src="../js/config/version.js"></script>
 <script src="../js/config/constants.js"></script>
+<script src="../js/data/characters.js"></script>
 <script src="../js/data/rulesets.js"></script>
 <script src="../js/engine/reversi-engine.js"></script>
 <script src="../js/engine/reversi-ai.js"></script>
 <script src="../js/game/reaction-engine.js"></script>
+<script src="../js/game/line-picker.js"></script>
+<script src="../js/ui/character-manager.js"></script>
 <script src="core.test.js"></script>
 <script src="engine.test.js"></script>
 <script src="ai.test.js"></script>
 <script src="reaction.test.js"></script>
+<script src="characters.test.js"></script>
+<script src="character-dom.test.js" data-browser-only></script>
 <script>
   Otc.Test.run().then(function (r) {
     var s = document.getElementById('summary');
