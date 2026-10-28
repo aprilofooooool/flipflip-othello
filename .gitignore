@@ -1,0 +1,17 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+node_modules/
+*.log
+
+# .claude/docs/ の再生成可能な成果物
+.claude/docs/**/*.npy
+.claude/docs/**/*.npz
+.claude/docs/**/*.parquet
+.claude/docs/**/*.zip
+.claude/docs/**/*.pyc
+.claude/docs/**/__pycache__/
+.claude/docs/**/.pytest_cache/
