@@ -20,6 +20,12 @@
       { name: 'midgame', minEmpties: 15, position: 3, mobility: 30, stable: 80, disc: 0 },
       { name: 'endgame', minEmpties: 0, position: 2, mobility: 15, stable: 100, disc: 10 }
     ],
+    // Reaction judgement: search depth for the evaluation change, flipped-disc count for sadness,
+    // and the evaluation-change thresholds for joy / panic (measured, see .claude/docs/reports/2026-10-29-delta-threshold.md).
+    REACTION_SEARCH_DEPTH: 2,
+    SADNESS_FLIPS: 5,
+    JOY_DELTA: 197,
+    PANIC_DELTA: 331,
     AI_LEVELS: {
       easy: { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 0.3 },
       normal: { depth: 3, timeMs: 1000, endgameEmpties: 8, randomRate: 0 },
