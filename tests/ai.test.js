@@ -233,4 +233,141 @@
       expect(AI.scoreFor(s, -s.turn, 2)).toBe(-v);
     });
   });
+
+  describe('AI.chooseMoveSync / AI.search', function () {
+    var C = Otc.Const;
+
+    function fakeScheduler() {
+      var queue = [];
+      var next = 1;
+      return {
+        queue: queue,
+        setTimeout: function (fn) { var id = next++; queue.push({ id: id, fn: fn }); return id; },
+        clearTimeout: function (id) {
+          for (var k = 0; k < queue.length; k++) { if (queue[k].id === id) { queue.splice(k, 1); return; } }
+        },
+        now: function () { return performance.now(); },
+        runAll: function () { while (queue.length > 0) { queue.shift().fn(); } }
+      };
+    }
+
+    it('a level with randomRate 1 always plays one of the legal moves', function () {
+      var level = { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 1 };
+      var rand = mulberry32(3);
+      for (var n = 0; n < 20; n++) {
+        var s = randomState(rand, 8 + n);
+        if (E.isGameOver(s) || E.mustPass(s)) { continue; }
+        expect(E.legalMoves(s)).toContain(AI.chooseMoveSync(s, level, rand).move);
+      }
+    });
+
+    it('returns move null when there is no legal move', function () {
+      var full = [];
+      for (var r = 0; r < 8; r++) { full.push('XXXXXXXX'); }
+      expect(AI.chooseMoveSync(E.stateFromRows(full, WHITE), 'easy').move).toBe(null);
+    });
+
+    it('every named level returns a legal move', function () {
+      var s = randomState(mulberry32(21), 14);
+      ['easy', 'normal', 'assist'].forEach(function (name) {
+        expect(E.legalMoves(s)).toContain(AI.chooseMoveSync(s, name, mulberry32(1)).move);
+      });
+    });
+
+    it('strong stays within timeMs + 100ms (10 midgame and 5 endgame positions)', function () {
+      var limit = C.AI_LEVELS.strong.timeMs + 100;
+      var rand = mulberry32(77);
+      var maxMid = 0;
+      var maxEnd = 0;
+      for (var n = 0; n < 10; n++) {
+        var s = randomState(rand, 16 + n * 2);
+        if (E.isGameOver(s) || E.mustPass(s)) { continue; }
+        var t0 = performance.now();
+        var r = AI.chooseMoveSync(s, 'strong', rand);
+        var dt = performance.now() - t0;
+        maxMid = Math.max(maxMid, dt);
+        expect(E.legalMoves(s)).toContain(r.move);
+      }
+      for (var m = 0; m < 5; m++) {
+        var e = lateState(rand, 12 + (m % 3));
+        if (E.mustPass(e)) { continue; }
+        var t1 = performance.now();
+        var re = AI.chooseMoveSync(e, 'strong', rand);
+        var dt2 = performance.now() - t1;
+        maxEnd = Math.max(maxEnd, dt2);
+        expect(E.legalMoves(e)).toContain(re.move);
+      }
+      console.log('strong max ms: midgame ' + maxMid.toFixed(0) + ', 12-14 empties ' + maxEnd.toFixed(0));
+      expect(maxMid).toBeLessThanOrEqual(limit);
+      expect(maxEnd).toBeLessThanOrEqual(limit);
+    });
+
+    it('with an exact solve, the pre-solve deepening stays shallow', function () {
+      var s = lateState(mulberry32(8), 10);
+      if (E.mustPass(s)) { return; }
+      var r = AI.searchSync(s, { depth: 6, endgameEmpties: 12 });
+      expect(r.timedOut).toBe(false);
+      expect(r.depth).toBe(E.countDiscs(s).empty);
+    });
+
+    it('search calls onDone exactly once', function () {
+      var s = randomState(mulberry32(4), 12);
+      var sch = fakeScheduler();
+      var calls = [];
+      AI.search(s, 'assist', function (r) { calls.push(r); }, { rng: mulberry32(1), scheduler: sch });
+      sch.runAll();
+      expect(calls.length).toBe(1);
+      expect(E.legalMoves(s)).toContain(calls[0].move);
+    });
+
+    it('search yields between depths', function () {
+      var s = randomState(mulberry32(4), 12);
+      var sch = fakeScheduler();
+      AI.search(s, 'assist', function () {}, { scheduler: sch });
+      expect(sch.queue.length).toBe(1);
+      sch.queue.shift().fn();
+      expect(sch.queue.length).toBe(1);
+    });
+
+    it('onDone is not called after cancel', function () {
+      var s = randomState(mulberry32(4), 12);
+      var sch = fakeScheduler();
+      var called = 0;
+      var h = AI.search(s, 'assist', function () { called++; }, { scheduler: sch });
+      sch.queue.shift().fn();
+      h.cancel();
+      sch.runAll();
+      expect(called).toBe(0);
+    });
+
+    it('search and chooseMoveSync pick the same move with the same rng', function () {
+      var level = { depth: 3, timeMs: 60000, endgameEmpties: 0, randomRate: 0 };
+      var rand = mulberry32(55);
+      for (var n = 0; n < 5; n++) {
+        var s = randomState(rand, 10 + n * 4);
+        if (E.isGameOver(s) || E.mustPass(s)) { continue; }
+        var sync = AI.chooseMoveSync(s, level, mulberry32(9));
+        var sch = fakeScheduler();
+        var got = null;
+        AI.search(s, level, function (r) { got = r; }, { rng: mulberry32(9), scheduler: sch });
+        sch.runAll();
+        expect(got.move).toBe(sync.move);
+        expect(got.score).toBe(sync.score);
+        expect(got.depth).toBe(sync.depth);
+      }
+    });
+
+    it('search consumes rng like chooseMoveSync when randomRate applies', function () {
+      var level = { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 0.5 };
+      var s = randomState(mulberry32(6), 14);
+      for (var seed = 1; seed <= 6; seed++) {
+        var sync = AI.chooseMoveSync(s, level, mulberry32(seed));
+        var sch = fakeScheduler();
+        var got = null;
+        AI.search(s, level, function (r) { got = r; }, { rng: mulberry32(seed), scheduler: sch });
+        sch.runAll();
+        expect(got.move).toBe(sync.move);
+      }
+    });
+  });
 })(window.Otc);

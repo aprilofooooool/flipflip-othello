@@ -237,48 +237,182 @@
     return { move: best, score: bestScore };
   }
 
-  function searchSync(state, options) {
+  // Pre-solve iterative deepening is only used to order the exact solve's first move.
+  var PRESOLVE_MAX_DEPTH = 2;
+
+  // Incremental search: one step() = one completed iterative-deepening depth, or the exact solve.
+  // searchSync and the async search share it, so both give identical results.
+  function createSession(state, options) {
     var opts = options || {};
-    var maxDepth = opts.depth || 0;
     var endgameEmpties = opts.endgameEmpties || 0;
-    var deadline = opts.deadline === undefined ? Infinity : opts.deadline;
     var w = { size: state.size, cells: new Int8Array(state.cells), turn: state.turn };
     var empties = 0;
     for (var i = 0; i < w.cells.length; i++) { if (w.cells[i] === 0) { empties++; } }
-    ctx = { nodes: 0, aborted: false, deadline: deadline, keys: tableFor(state.size).keys };
-
+    var session = {
+      w: w,
+      ctx: {
+        nodes: 0,
+        aborted: false,
+        deadline: opts.deadline === undefined ? Infinity : opts.deadline,
+        keys: tableFor(state.size).keys
+      },
+      empties: empties,
+      solve: endgameEmpties > 0 && empties <= endgameEmpties,
+      maxDepth: opts.depth || 0,
+      d: 0,
+      solved: false,
+      timedOut: false,
+      done: false,
+      best: null
+    };
+    if (session.solve) { session.maxDepth = Math.min(session.maxDepth, PRESOLVE_MAX_DEPTH); }
+    ctx = session.ctx;
     // Depth 0: the best statically ordered legal move and its static value.
     var first = genMoves(w, ctx.keys);
-    var best = {
+    session.best = {
       move: first.length > 0 ? first[0].i : null,
       score: evalCells(w.size, w.cells, w.turn),
       depth: 0
     };
-    var timedOut = false;
+    ctx = null;
+    return session;
+  }
 
-    for (var d = 1; d <= maxDepth; d++) {
-      if (performance.now() > deadline) { timedOut = true; break; }
-      var r = rootSearch(w, d, best.move, false);
-      if (r === null) { timedOut = true; break; }
-      best = { move: r.move, score: r.score, depth: d };
-    }
-
-    if (!timedOut && endgameEmpties > 0 && empties <= endgameEmpties) {
+  // Runs the next unit of work. Returns true while more work remains.
+  function stepSession(session) {
+    if (session.done) { return false; }
+    ctx = session.ctx;
+    var deadline = ctx.deadline;
+    var w = session.w;
+    if (session.d < session.maxDepth) {
       if (performance.now() > deadline) {
-        timedOut = true;
+        session.timedOut = true;
       } else {
-        var x = rootSearch(w, 0, best.depth > 0 ? best.move : null, true);
-        if (x === null) {
-          timedOut = true;
+        var r = rootSearch(w, session.d + 1, session.best.move, false);
+        if (r === null) {
+          session.timedOut = true;
         } else {
-          best = { move: x.move, score: x.score, depth: empties };
+          session.d++;
+          session.best = { move: r.move, score: r.score, depth: session.d };
+        }
+      }
+    } else if (session.solve && !session.solved) {
+      session.solved = true;
+      if (performance.now() > deadline) {
+        session.timedOut = true;
+      } else {
+        var x = rootSearch(w, 0, session.best.depth > 0 ? session.best.move : null, true);
+        if (x === null) {
+          session.timedOut = true;
+        } else {
+          session.best = { move: x.move, score: x.score, depth: session.empties };
         }
       }
     }
-
-    var nodes = ctx.nodes;
     ctx = null;
-    return { move: best.move, score: best.score, depth: best.depth, nodes: nodes, timedOut: timedOut };
+    if (session.timedOut || (session.d >= session.maxDepth && (!session.solve || session.solved))) {
+      session.done = true;
+    }
+    return !session.done;
+  }
+
+  function sessionResult(session) {
+    var b = session.best;
+    return {
+      move: b.move, score: b.score, depth: b.depth,
+      nodes: session.ctx.nodes, timedOut: session.timedOut
+    };
+  }
+
+  function searchSync(state, options) {
+    var session = createSession(state, options);
+    while (stepSession(session)) { /* run to completion */ }
+    return sessionResult(session);
+  }
+
+  // ---- Difficulty levels -------------------------------------------------------------------
+  function resolveLevel(levelOrName) {
+    if (typeof levelOrName === 'string') {
+      var lv = C.AI_LEVELS[levelOrName];
+      if (!lv) { throw new Error('Unknown AI level: ' + levelOrName); }
+      return lv;
+    }
+    return levelOrName;
+  }
+
+  function pickRandom(state, level, rng) {
+    if (level.randomRate > 0 && rng() < level.randomRate) {
+      var ms = E.legalMoves(state);
+      if (ms.length > 0) { return ms[Math.floor(rng() * ms.length)]; }
+    }
+    return null;
+  }
+
+  function randomResult(move) {
+    return { move: move, score: 0, depth: 0, timedOut: false };
+  }
+
+  function sessionOptions(level, now) {
+    return { depth: level.depth, endgameEmpties: level.endgameEmpties, deadline: now + level.timeMs };
+  }
+
+  function chooseMoveSync(state, levelOrName, rng) {
+    var level = resolveLevel(levelOrName);
+    var rand = rng || Math.random;
+    if (E.legalMoves(state).length === 0) { return { move: null }; }
+    var rm = pickRandom(state, level, rand);
+    if (rm !== null) { return randomResult(rm); }
+    return searchSync(state, sessionOptions(level, performance.now()));
+  }
+
+  function search(state, levelOrName, onDone, options) {
+    var level = resolveLevel(levelOrName);
+    var o = options || {};
+    var rand = o.rng || Math.random;
+    var sched = o.scheduler || {
+      setTimeout: function (fn, ms) { return setTimeout(fn, ms); },
+      clearTimeout: function (id) { clearTimeout(id); },
+      now: function () { return performance.now(); }
+    };
+    var cancelled = false;
+    var timer = null;
+
+    function finish(result) {
+      timer = null;
+      if (!cancelled) { onDone(result); }
+    }
+
+    // The rng draw happens before the first yield, exactly like chooseMoveSync.
+    var immediate = null;
+    if (E.legalMoves(state).length === 0) {
+      immediate = { move: null };
+    } else {
+      var rm = pickRandom(state, level, rand);
+      if (rm !== null) { immediate = randomResult(rm); }
+    }
+
+    if (immediate !== null) {
+      timer = sched.setTimeout(function () { finish(immediate); }, 0);
+    } else {
+      var session = createSession(state, sessionOptions(level, performance.now()));
+      var tickFn = function () {
+        timer = null;
+        if (cancelled) { return; }
+        if (stepSession(session)) {
+          timer = sched.setTimeout(tickFn, 0);
+        } else {
+          finish(sessionResult(session));
+        }
+      };
+      timer = sched.setTimeout(tickFn, 0);
+    }
+
+    return {
+      cancel: function () {
+        cancelled = true;
+        if (timer !== null) { sched.clearTimeout(timer); timer = null; }
+      }
+    };
   }
 
   function scoreFor(state, player, depth) {
@@ -291,6 +425,8 @@
     evaluate: evaluate,
     orderMoves: orderMoves,
     searchSync: searchSync,
+    chooseMoveSync: chooseMoveSync,
+    search: search,
     scoreFor: scoreFor
   };
 })(window.Otc);
