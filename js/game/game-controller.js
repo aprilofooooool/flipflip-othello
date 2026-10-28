@@ -104,8 +104,11 @@
         return;
       }
       if (E.mustPass(state)) {
+        // Record the pending pass before emitting so a synchronous listener can skipPass/undo safely.
+        var p = { replay: !!replay, timer: null };
+        pass = p;
         bus.emit('pass', { player: turnPlayer() });
-        pass = { replay: !!replay, timer: scheduler.setTimeout(applyPass, Otc.Const.PASS_DISPLAY_MS) };
+        if (pass === p) { p.timer = scheduler.setTimeout(applyPass, Otc.Const.PASS_DISPLAY_MS); }
       }
     }
 
@@ -115,8 +118,7 @@
       cancelPass();
       var before = current();
       var next = E.applyPass(before);
-      var redone = history[cursor + 1];
-      if (redone && redone.passed && redone.moveNo === next.moveNo) { cursor += 1; } else { push(next); }
+      push(next);
       react({ mover: before.turn, kind: 'pass', flippedCount: 0, tookCorner: false, deltaE: 0, replay: replay }, false);
       emitState();
       advance(replay);
@@ -163,16 +165,33 @@
       return true;
     }
 
-    // Undo/Redo move one history entry (a move or a pass); they never fire reactions.
-    function step(delta) {
-      cancelPass();
-      cursor += delta;
-      emitState();
-      advance(true);
+    function mustPassNow() {
+      return !E.isGameOver(current()) && E.mustPass(current());
     }
 
-    function undo() { if (!canUndo()) { return false; } step(-1); return true; }
-    function redo() { if (!canRedo()) { return false; } step(1); return true; }
+    // A forced pass is bundled with the move before it: Undo/Redo never rest on a must-pass position
+    // that has its pass stored, and never show the pass display. Reactions never fire.
+    function undo() {
+      if (!canUndo()) { return false; }
+      cancelPass();
+      cursor -= 1;
+      while (cursor > 0 && mustPassNow()) { cursor -= 1; }
+      emitState();
+      advance(true);
+      return true;
+    }
+
+    function redo() {
+      if (!canRedo()) { return false; }
+      cancelPass();
+      cursor += 1;
+      while (mustPassNow() && cursor < history.length - 1 && history[cursor + 1].passed &&
+        history[cursor + 1].moveNo === current().moveNo + 1) { cursor += 1; }
+      emitState();
+      advance(true);
+      return true;
+    }
+
     function canUndo() { return !!settings && cursor > 0; }
     function canRedo() { return !!settings && cursor < history.length - 1; }
 

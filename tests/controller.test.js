@@ -229,16 +229,40 @@
       t.ctrl.skipPass();
       expect(t.ctrl.getView().state.moveNo).toBe(0);
     });
-    it('undo back onto a forced pass re-shows it; applying it keeps Redo history', function () {
+    it('a forced pass is one undo/redo unit with the move before it', function () {
       var t = toPass();
       t.sched.advance(C.PASS_DISPLAY_MS);
-      var moveNo = t.ctrl.getView().state.moveNo;
-      t.ctrl.undo();
-      expect(t.ctrl.getView().state.moveNo).toBe(moveNo - 1);
+      expect(t.ctrl.getView().state.moveNo).toBe(19);
+      var passEvents = events(t.log, 'pass').length;
+      expect(t.ctrl.undo()).toBe(true);
+      var v = t.ctrl.getView();
+      expect(v.state.moveNo).toBe(17);
+      expect(v.legal.length).toBeGreaterThanOrEqual(1);
+      expect(events(t.log, 'pass').length).toBe(passEvents);
+      expect(t.sched.pending()).toBe(0);
       expect(t.ctrl.canRedo()).toBe(true);
-      t.sched.advance(C.PASS_DISPLAY_MS);
-      expect(t.ctrl.getView().state.moveNo).toBe(moveNo);
+      expect(t.ctrl.canUndo()).toBe(true);
+      expect(t.ctrl.redo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(19);
+      expect(t.ctrl.getView().state.passed).toBe(true);
       expect(t.ctrl.canRedo()).toBe(false);
+      expect(events(t.log, 'pass').length).toBe(passEvents);
+      expect(t.sched.pending()).toBe(0);
+    });
+    it('a pass listener that calls undo synchronously leaves no illegal pass applied', function () {
+      var bus = Otc.createBus();
+      var sched = createFakeScheduler();
+      var ctrl = Otc.GameController.create({ bus: bus, scheduler: sched, rng: function () { return 0.5; } });
+      var undone = false;
+      bus.on('pass', function () { if (!undone) { undone = true; ctrl.undo(); } });
+      ctrl.start({ mode: 'duo', p1: 'mametchi', p2: 'kuchipatchi', first: 'p1', level: 'normal',
+        handicapLevel: 0, handicapReceiver: 'p1', ruleSetId: 'standard', assist: false });
+      for (var i = 0; i < 18; i++) { ctrl.play(ctrl.getView().legal[0]); }
+      expect(undone).toBe(true);
+      expect(ctrl.getView().state.moveNo).toBe(17);
+      sched.advance(C.PASS_DISPLAY_MS * 3);
+      expect(ctrl.getView().state.moveNo).toBe(17);
+      expect(ctrl.getView().legal.length).toBeGreaterThanOrEqual(1);
     });
     it('undo while a pass is pending cancels its timer', function () {
       var t = toPass();
