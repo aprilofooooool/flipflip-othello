@@ -15,8 +15,8 @@ const characters = ctx.Otc.Characters;
 
 const INK = '#222233';
 const CX = 256;
-const CY = 225;
-const R = 185;
+const CY = 256; // disc center; outer rim edge = R + 14 = 248 (inside the 256 inscribed circle)
+const R = 234;
 const EYE_Y = 205;
 const EX = 78; // eye offset from center x
 
@@ -48,7 +48,7 @@ const faces = {
     dot(CX - EX, 212, 15) + dot(CX + EX, 212, 15) + drop(CX - EX - 4, 235) +
     '<path d="M' + (CX - 42) + ' 315 Q' + CX + ' 285 ' + (CX + 42) + ' 315" ' + stroke(9) + '/>',
   panic: () => spiral(CX - EX, EYE_Y) + spiral(CX + EX, EYE_Y) +
-    '<ellipse cx="' + CX + '" cy="298" rx="26" ry="20" fill="' + INK + '"/>' + drop(CX + 128, 115),
+    '<ellipse cx="' + CX + '" cy="298" rx="26" ry="20" fill="' + INK + '"/>' + drop(CX + 110, 118),
   thinking: () => '<ellipse cx="' + (CX - EX) + '" cy="' + EYE_Y + '" rx="17" ry="22" fill="#fff" stroke="' + INK + '" stroke-width="5"/>' +
     '<ellipse cx="' + (CX + EX) + '" cy="' + EYE_Y + '" rx="17" ry="22" fill="#fff" stroke="' + INK + '" stroke-width="5"/>' +
     dot(CX - EX + 9, EYE_Y, 9) + dot(CX + EX + 9, EYE_Y, 9) +
@@ -60,8 +60,8 @@ function build(ch, emotion) {
   const initial = Array.from(ch.name)[0];
   return '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">' +
     '<circle cx="' + CX + '" cy="' + CY + '" r="' + R + '" fill="' + ch.colors.main + '" stroke="' + ch.colors.sub + '" stroke-width="28"/>' +
-    faces[emotion]() +
-    '<text x="256" y="490" text-anchor="middle" font-size="76" font-weight="bold" font-family="Yu Gothic, Meiryo, sans-serif" fill="' + ch.colors.main + '" stroke="' + ch.colors.sub + '" stroke-width="8" paint-order="stroke">' + initial + '</text>' +
+    '<g transform="translate(256 235) scale(1.15) translate(-256 -225)">' + faces[emotion]() + '</g>' +
+    '<text x="256" y="454" text-anchor="middle" font-size="72" font-weight="bold" font-family="Yu Gothic, Meiryo, sans-serif" fill="' + ch.colors.sub + '" stroke="' + INK + '" stroke-width="5" paint-order="stroke">' + initial + '</text>' +
     '</svg>\n';
 }
 
