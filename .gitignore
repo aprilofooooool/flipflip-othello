@@ -15,3 +15,6 @@ node_modules/
 .claude/docs/**/*.pyc
 .claude/docs/**/__pycache__/
 .claude/docs/**/.pytest_cache/
+
+# regenerable placeholder art intermediates
+tools/placeholder-art/svg/
