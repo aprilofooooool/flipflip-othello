@@ -85,4 +85,13 @@
 
 ## ユーザー確認結果（2026-10-29）
 
-上記「セリフ設計への反映方針」の暫定値で確定（みみっちの一人称は「わたし」）。口癖は作らず、語尾は半分程度のセリフに付ける。
+上記「セリフ設計への反映方針」の暫定値で確定（みみっちの一人称は「わたし」）。
+
+### 口癖の再調査（2026-10-29）
+
+- 公式キャラクターページ（まめっち uni／初代／connection 版ほか各キャラページ）に口癖の記載なし。
+  - https://tamagotchi-official.com/jp/series/uni/character/1/
+  - https://tamagotchi-official.com/jp/series/original/character/101/
+  - https://tamagotchi-official.com/jp/series/connection/character/219/
+- Wikipedia「たまごっち!の登場キャラクター」にも口癖の記載なし。くちぱっちの「〜だっち」を口癖とするのは非公式サイト（アニメで定着した設定との説明）。
+- ユーザー決定：口癖は作らない。語尾があるキャラ（くちぱっち・みみっち）は原則全セリフに付け、不自然な場合のみ省略可。まめっちは全セリフていねい語。
