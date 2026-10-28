@@ -2,6 +2,7 @@
 // Static checks (Node only): reference case-exactness, forbidden patterns, file naming.
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const problems = [];
@@ -69,17 +70,37 @@ for (const f of jsFiles) {
 }
 const charsFile = path.join(root, 'js', 'data', 'characters.js');
 if (exists(charsFile)) {
-  const text = read(charsFile);
-  const emotions = ['normal', 'joy', 'anger', 'sadness', 'panic', 'thinking'];
-  const dirRe = /\bdir\s*:\s*['"]([^'"]+)['"]\s*,[^]*?\bext\s*:\s*['"]([^'"]+)['"]/g;
-  let m;
-  let found = 0;
-  while ((m = dirRe.exec(text)) !== null) {
-    found++;
-    const dir = m[1].endsWith('/') ? m[1] : m[1] + '/';
-    for (const emo of emotions) { checkExact(path.join(root, dir + emo + m[2]), charsFile); }
+  const sandbox = {};
+  sandbox.window = sandbox;
+  const ctx = vm.createContext(sandbox);
+  let chars = null;
+  try {
+    vm.runInContext(read(path.join(root, 'js', 'core', 'namespace.js')), ctx);
+    vm.runInContext(read(charsFile), ctx, { filename: charsFile });
+    chars = vm.runInContext('Otc.Characters', ctx);
+  } catch (e) {
+    problems.push(rel(charsFile) + ': failed to load: ' + e.message);
   }
-  if (found === 0) { warnings.push('js/data/characters.js: no dir/ext entries found'); }
+  if (chars !== null) {
+    const list = Array.isArray(chars) ? chars : (chars && typeof chars === 'object' ? Object.values(chars) : []);
+    if (list.length === 0) {
+      problems.push(rel(charsFile) + ': Otc.Characters is missing or empty');
+    }
+    const emotions = ['normal', 'joy', 'anger', 'sadness', 'panic', 'thinking'];
+    for (const c of list) {
+      const img = c && c.image;
+      if (!img || typeof img.dir !== 'string' || typeof img.ext !== 'string') {
+        problems.push(rel(charsFile) + ': character without image.dir/image.ext: ' + (c && c.id));
+        continue;
+      }
+      const dir = img.dir.endsWith('/') ? img.dir : img.dir + '/';
+      const names = emotions.map((emo) => emo + '.' + img.ext);
+      if (img.hasDisc) { names.push('disc.' + img.ext); }
+      for (const n of names) { checkExact(path.join(root, dir + n), charsFile); }
+    }
+  }
+} else {
+  warnings.push('js/data/characters.js not found (skipped)');
 }
 
 // 2. Forbidden patterns
@@ -111,7 +132,7 @@ for (const f of appFiles) {
 const allowedNames = new Set(['README.md', 'CHANGELOG.md']);
 function walkNames(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (dir === root && (e.name === '.git' || e.name === '.claude')) { continue; }
+    if (dir === root && ['.git', '.claude', '.superpowers', 'node_modules'].includes(e.name)) { continue; }
     if (!allowedNames.has(e.name) && !/^[a-z0-9.-]+$/.test(e.name)) {
       problems.push(rel(path.join(dir, e.name)) + ': invalid name');
     }
