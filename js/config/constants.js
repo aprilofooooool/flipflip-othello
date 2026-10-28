@@ -26,6 +26,8 @@
     SADNESS_FLIPS: 5,
     JOY_DELTA: 197,
     PANIC_DELTA: 331,
+    // How long a forced pass stays on screen before the turn changes (ms).
+    PASS_DISPLAY_MS: 1500,
     // Speech bubble: maximum characters per line (counted with Array.from).
     BUBBLE_MAX_CHARS: 20,
     AI_LEVELS: {
