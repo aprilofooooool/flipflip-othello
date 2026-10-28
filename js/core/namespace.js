@@ -1,0 +1,1 @@
+window.Otc = window.Otc || {};
