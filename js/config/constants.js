@@ -30,6 +30,19 @@
     PASS_DISPLAY_MS: 1500,
     // Speech bubble: maximum characters per line (counted with Array.from).
     BUBBLE_MAX_CHARS: 20,
+    // CPU turn: minimum wait range [min, max] in ms before the CPU moves (picked with rng).
+    CPU_MIN_WAIT_MS: [800, 1500],
+    // Human turn: show Thinking after this long without any operation (ms).
+    IDLE_THINK_MS: 5000,
+    // Game-in-progress save (localStorage key via Otc.Storage) and its format version.
+    SAVE_KEY: 'otc.save.v1',
+    SAVE_VERSION: 1,
+    // Chance of a turnStart line at a human turn start when the move gave no emotion line.
+    TURN_LINE_RATE: 0.3,
+    // winning / losing line: AI.scoreFor(state, color, 1) above +ADVANTAGE_EVAL / below -ADVANTAGE_EVAL.
+    // Starts at the JOY_DELTA value. At most once per player every ADVANTAGE_COOLDOWN_MOVES moves.
+    ADVANTAGE_EVAL: 197,
+    ADVANTAGE_COOLDOWN_MOVES: 6,
     AI_LEVELS: {
       easy: { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 0.3 },
       normal: { depth: 3, timeMs: 1000, endgameEmpties: 8, randomRate: 0 },

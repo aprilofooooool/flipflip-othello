@@ -302,4 +302,446 @@
       expect(t.ctrl.play(0)).toBe(false);
     });
   });
+
+  // ---- Task 9: CPU, cancellation, idle thinking, assist, save ----
+
+  // Fake AI: keeps search calls in order; the test resolves them. resolve() calls onDone even after
+  // cancel, so the controller's own stale-result guard is what gets tested.
+  function createFakeAi() {
+    var calls = [];
+    return {
+      calls: calls,
+      search: function (state, level, onDone) {
+        var c = { state: state, level: level, onDone: onDone, cancelled: false };
+        calls.push(c);
+        return { cancel: function () { c.cancelled = true; } };
+      },
+      cpuCalls: function () { return calls.filter(function (c) { return c.level !== 'assist'; }); },
+      assistCalls: function () { return calls.filter(function (c) { return c.level === 'assist'; }); }
+    };
+  }
+
+  function resolveCall(c, index) {
+    c.onDone({ move: index === undefined ? E.legalMoves(c.state)[0] : index });
+  }
+
+  function lastOf(list) { return list[list.length - 1]; }
+
+  // In-memory storage with the Otc.Storage interface (real get/set/remove, own backend).
+  function createMemStorage(initial) {
+    var data = {};
+    Object.keys(initial || {}).forEach(function (k) { data[k] = initial[k]; });
+    var st = Object.create(Otc.Storage);
+    st._backend = {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function (k, v) { data[k] = String(v); },
+      removeItem: function (k) { delete data[k]; }
+    };
+    st.data = data;
+    return st;
+  }
+
+  var SOLO = {
+    mode: 'solo', p1: 'mametchi', p2: 'kuchipatchi', first: 'p1', level: 'normal',
+    handicapLevel: 0, handicapReceiver: 'p1', ruleSetId: 'standard', assist: false
+  };
+
+  function soloSettings(over) {
+    var s = {};
+    Object.keys(SOLO).forEach(function (k) { s[k] = SOLO[k]; });
+    Object.keys(over || {}).forEach(function (k) { s[k] = over[k]; });
+    return s;
+  }
+
+  // Creates a controller without starting it. opts: { rng, storage, ai, sched }.
+  function makeCtrl(opts) {
+    var o = opts || {};
+    var bus = Otc.createBus();
+    var sched = o.sched || createFakeScheduler();
+    var ai = o.ai || createFakeAi();
+    var storage = o.storage || createMemStorage();
+    var log = [];
+    ['state', 'moved', 'pass', 'emotion', 'line', 'gameover', 'thinking', 'busy', 'assist'].forEach(function (t) {
+      bus.on(t, function (p) { log.push({ type: t, payload: p }); });
+    });
+    var rng = o.rng || function () { return 0.5; };
+    var ctrl = Otc.GameController.create({ bus: bus, scheduler: sched, rng: rng, ai: ai, storage: storage });
+    return { ctrl: ctrl, sched: sched, ai: ai, storage: storage, log: log };
+  }
+
+  function setupSolo(over, opts) {
+    var t = makeCtrl(opts);
+    t.ctrl.start(soloSettings(over));
+    return t;
+  }
+
+  // Lets the CPU reply with its first legal move.
+  function cpuReply(t) {
+    resolveCall(lastOf(t.ai.cpuCalls()));
+    t.sched.advance(C.CPU_MIN_WAIT_MS[1]);
+  }
+
+  // Human and CPU both play their first legal move until moveNo reaches `count`.
+  function soloPlayFirstLegal(t, count) {
+    var guard = 0;
+    while (t.ctrl.getView().state.moveNo < count && guard++ < 200) {
+      var v = t.ctrl.getView();
+      if (v.isCpuTurn) { cpuReply(t); } else { t.ctrl.play(v.legal[0]); }
+    }
+  }
+
+  describe('GameController CPU turn', function () {
+    it('CPU 手番: 探索完了が早くても最低待ち(rng=0 → 800ms)まで打たない', function () {
+      var t = setupSolo({}, { rng: function () { return 0; } });
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      expect(t.ai.cpuCalls().length).toBe(1);
+      expect(t.ai.cpuCalls()[0].level).toBe('normal');
+      resolveCall(t.ai.cpuCalls()[0]);
+      t.sched.advance(799);
+      expect(t.ctrl.getView().state.moveNo).toBe(1);
+      t.sched.advance(1);
+      expect(t.ctrl.getView().state.moveNo).toBe(2);
+      expect(t.ctrl.getView().busy).toBe(false);
+      expect(lastOf(events(t.log, 'moved')).mover).toBe('p2');
+    });
+    it('待ちが過ぎても探索完了まで打たない', function () {
+      var t = setupSolo();
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      t.sched.advance(C.CPU_MIN_WAIT_MS[1] * 2);
+      expect(t.ctrl.getView().state.moveNo).toBe(1);
+      resolveCall(t.ai.cpuCalls()[0]);
+      expect(t.ctrl.getView().state.moveNo).toBe(2);
+    });
+    it('CPU 思考中の play は false、busy と thinking が出て着手で消える', function () {
+      var t = setupSolo();
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      var v = t.ctrl.getView();
+      expect(v.busy).toBe(true);
+      expect(t.ctrl.play(v.legal[0])).toBe(false);
+      expect(events(t.log, 'busy')).toEqual([{ on: true }]);
+      expect(events(t.log, 'thinking')).toEqual([{ player: 'p2', on: true }]);
+      expect(lastOf(events(t.log, 'line')).situation).toBe('thinking');
+      cpuReply(t);
+      expect(events(t.log, 'busy')).toEqual([{ on: true }, { on: false }]);
+      expect(lastOf(events(t.log, 'thinking'))).toEqual({ player: 'p2', on: false });
+    });
+    it('CPU 思考中に undo → その後 resolve しても盤面は変わらない', function () {
+      var t = setupSolo();
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      var call = t.ai.cpuCalls()[0];
+      expect(t.ctrl.undo()).toBe(true);
+      expect(call.cancelled).toBe(true);
+      expect(t.ctrl.getView().busy).toBe(false);
+      expect(lastOf(events(t.log, 'busy'))).toEqual({ on: false });
+      expect(lastOf(events(t.log, 'thinking'))).toEqual({ player: 'p2', on: false });
+      resolveCall(call);
+      t.sched.advance(C.CPU_MIN_WAIT_MS[1] * 2);
+      expect(t.ctrl.getView().state.moveNo).toBe(0);
+      expect(events(t.log, 'moved').length).toBe(1);
+    });
+    it('パス表示中に undo → PASS_DISPLAY_MS 経過後も手番交代が起きない', function () {
+      var t = setupSolo();
+      soloPlayFirstLegal(t, 18);
+      var v = t.ctrl.getView();
+      expect(v.state.moveNo).toBe(18);
+      expect(v.legal.length).toBe(0);
+      expect(events(t.log, 'pass').length).toBe(1);
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(16);
+      t.sched.advance(C.PASS_DISPLAY_MS * 3);
+      var after = t.ctrl.getView();
+      expect(after.state.moveNo).toBe(16);
+      expect(after.turnPlayer).toBe('p1');
+      expect(after.state.passed).toBe(false);
+    });
+    it('stop は CPU の探索を取り消す', function () {
+      var t = setupSolo();
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      t.ctrl.stop();
+      expect(t.ai.cpuCalls()[0].cancelled).toBe(true);
+      resolveCall(t.ai.cpuCalls()[0]);
+      t.sched.advance(C.CPU_MIN_WAIT_MS[1] * 2);
+      expect(t.ctrl.getView().state.moveNo).toBe(1);
+      expect(t.sched.pending()).toBe(0);
+    });
+  });
+
+  describe('GameController solo undo/redo', function () {
+    it('solo の undo は人間の直前の手番まで戻る（CPU の手とまとめて 2 手）、redo も同単位', function () {
+      var t = setupSolo();
+      soloPlayFirstLegal(t, 4);
+      expect(t.ctrl.getView().state.moveNo).toBe(4);
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(2);
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(0);
+      expect(t.ctrl.canUndo()).toBe(false);
+      expect(t.ctrl.redo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(2);
+      expect(t.ctrl.redo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(4);
+      expect(t.ctrl.canRedo()).toBe(false);
+      expect(t.ai.cpuCalls().length).toBe(2);
+      expect(t.ctrl.getView().busy).toBe(false);
+    });
+    it('CPU 先手の初手後に undo → cursor 0 に戻り、CPU が再び考え始める', function () {
+      var t = setupSolo({ first: 'p2' });
+      expect(t.ctrl.getView().busy).toBe(true);
+      expect(t.ai.cpuCalls().length).toBe(1);
+      cpuReply(t);
+      expect(t.ctrl.getView().state.moveNo).toBe(1);
+      expect(t.ctrl.undo()).toBe(true);
+      var v = t.ctrl.getView();
+      expect(v.state.moveNo).toBe(0);
+      expect(v.isCpuTurn).toBe(true);
+      expect(v.busy).toBe(true);
+      expect(t.ai.cpuCalls().length).toBe(2);
+      cpuReply(t);
+      expect(t.ctrl.getView().state.moveNo).toBe(1);
+    });
+  });
+
+  describe('GameController idle thinking', function () {
+    it('IDLE_THINK_MS 経過で thinking on、play で off', function () {
+      var t = setupSolo();
+      t.sched.advance(C.IDLE_THINK_MS - 1);
+      expect(events(t.log, 'thinking').length).toBe(0);
+      t.sched.advance(1);
+      expect(events(t.log, 'thinking')).toEqual([{ player: 'p1', on: true }]);
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      expect(events(t.log, 'thinking').slice(0, 2)).toEqual([{ player: 'p1', on: true }, { player: 'p1', on: false }]);
+    });
+    it('notifyActivity は長考を解除してタイマーをやり直す', function () {
+      var t = setupSolo();
+      t.sched.advance(C.IDLE_THINK_MS);
+      t.ctrl.notifyActivity();
+      expect(events(t.log, 'thinking')).toEqual([{ player: 'p1', on: true }, { player: 'p1', on: false }]);
+      t.sched.advance(C.IDLE_THINK_MS - 1);
+      expect(events(t.log, 'thinking').length).toBe(2);
+      t.sched.advance(1);
+      expect(events(t.log, 'thinking').length).toBe(3);
+    });
+  });
+
+  describe('GameController lines', function () {
+    it('start で両者に gameStart の line イベント', function () {
+      var t = setupSolo();
+      var lines = events(t.log, 'line').map(function (l) { return l.player + ':' + l.situation; });
+      expect(lines).toEqual(['p1:gameStart', 'p2:gameStart']);
+    });
+    it('rng=0 で人間の手番開始時に turnStart の line', function () {
+      var t = setupSolo({}, { rng: function () { return 0; } });
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      var n = events(t.log, 'line').length;
+      cpuReply(t);
+      var added = events(t.log, 'line').slice(n);
+      var emotionLine = added.some(function (l) {
+        return ['cornerTaken', 'cornerLost', 'manyFlipped', 'goodMove'].indexOf(l.situation) >= 0;
+      });
+      expect(emotionLine).toBe(false);
+      expect(added.map(function (l) { return l.player + ':' + l.situation; })).toContain('p1:turnStart');
+    });
+    it('undo/redo では turnStart を出さない', function () {
+      var t = setupSolo({}, { rng: function () { return 0; } });
+      soloPlayFirstLegal(t, 4);
+      var n = events(t.log, 'line').length;
+      t.ctrl.undo();
+      t.ctrl.redo();
+      expect(events(t.log, 'line').length).toBe(n);
+    });
+    it('winning/losing は ADVANTAGE_COOLDOWN_MOVES 手以内に同じプレイヤーへ 2 回出ない', function () {
+      var t = makeCtrl();
+      var moveNo = 0;
+      var adv = [];
+      t.ctrl.start(soloSettings({ mode: 'duo' }));
+      var guard = 0;
+      while (!t.ctrl.getView().gameOver && guard++ < 200) {
+        var v = t.ctrl.getView();
+        if (v.legal.length) { t.ctrl.play(v.legal[0]); } else { t.ctrl.skipPass(); }
+      }
+      t.log.forEach(function (e) {
+        if (e.type === 'state') { moveNo = e.payload.state.moveNo; }
+        if (e.type === 'line' && (e.payload.situation === 'winning' || e.payload.situation === 'losing')) {
+          adv.push({ player: e.payload.player, moveNo: moveNo });
+        }
+      });
+      expect(adv.length).toBeGreaterThanOrEqual(2);
+      ['p1', 'p2'].forEach(function (p) {
+        var mine = adv.filter(function (a) { return a.player === p; });
+        for (var i = 1; i < mine.length; i++) {
+          expect(mine[i].moveNo - mine[i - 1].moveNo).toBeGreaterThanOrEqual(C.ADVANTAGE_COOLDOWN_MOVES);
+        }
+      });
+    });
+  });
+
+  describe('GameController assist', function () {
+    it('assist on → 人間手番で assist イベント、CPU 手番になると assist null', function () {
+      var t = setupSolo({ assist: true });
+      expect(t.ai.assistCalls().length).toBe(1);
+      var idx = E.legalMoves(t.ai.assistCalls()[0].state)[1];
+      resolveCall(t.ai.assistCalls()[0], idx);
+      expect(lastOf(events(t.log, 'assist'))).toEqual({ index: idx });
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      expect(lastOf(events(t.log, 'assist'))).toEqual({ index: null });
+      expect(t.ai.assistCalls().length).toBe(1);
+      cpuReply(t);
+      expect(t.ai.assistCalls().length).toBe(2);
+      t.ctrl.setAssist(false);
+      expect(t.ai.assistCalls()[1].cancelled).toBe(true);
+      expect(lastOf(events(t.log, 'assist'))).toEqual({ index: null });
+      resolveCall(t.ai.assistCalls()[1]);
+      expect(lastOf(events(t.log, 'assist'))).toEqual({ index: null });
+    });
+    it('undo 時は古い探索結果を捨てる', function () {
+      var t = setupSolo({ assist: true });
+      soloPlayFirstLegal(t, 2);
+      var old = lastOf(t.ai.assistCalls());
+      expect(old.state.moveNo).toBe(2);
+      t.ctrl.undo();
+      expect(old.cancelled).toBe(true);
+      expect(lastOf(events(t.log, 'assist'))).toEqual({ index: null });
+      var n = events(t.log, 'assist').length;
+      resolveCall(old);
+      expect(events(t.log, 'assist').length).toBe(n);
+      var fresh = lastOf(t.ai.assistCalls());
+      expect(fresh.state.moveNo).toBe(0);
+      resolveCall(fresh);
+      expect(lastOf(events(t.log, 'assist')).index).toBe(E.legalMoves(fresh.state)[0]);
+    });
+  });
+
+  describe('GameController save', function () {
+    it('着手後に save が書かれ、restore で同じ getView().state', function () {
+      var t = setupSolo();
+      expect(Otc.GameController.hasSave(t.storage)).toBe(false);
+      soloPlayFirstLegal(t, 4);
+      expect(Otc.GameController.hasSave(t.storage)).toBe(true);
+      var saved = JSON.parse(t.storage.data[C.SAVE_KEY]);
+      expect(saved.version).toBe(C.SAVE_VERSION);
+      expect(saved.cursor).toBe(4);
+      expect(Array.isArray(saved.history[0].cells)).toBe(true);
+      var t2 = makeCtrl({ storage: t.storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      expect(t2.ctrl.getView().state).toEqual(t.ctrl.getView().state);
+      expect(t2.ctrl.getView().colors).toEqual(t.ctrl.getView().colors);
+      expect(t2.ctrl.canUndo()).toBe(true);
+      expect(events(t2.log, 'line').length).toBe(0);
+      expect(t2.ctrl.undo()).toBe(true);
+      expect(t2.ctrl.getView().state.moveNo).toBe(2);
+    });
+    it('終局で save が消える、start でも消える', function () {
+      var storage = createMemStorage();
+      var t = makeCtrl({ storage: storage });
+      t.ctrl.start(soloSettings({ mode: 'duo' }));
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      expect(Otc.GameController.hasSave(storage)).toBe(true);
+      t.ctrl.start(soloSettings({ mode: 'duo' }));
+      expect(Otc.GameController.hasSave(storage)).toBe(false);
+      var guard = 0;
+      while (!t.ctrl.getView().gameOver && guard++ < 200) {
+        var v = t.ctrl.getView();
+        if (v.legal.length) { t.ctrl.play(v.legal[0]); } else { t.ctrl.skipPass(); }
+        if (!t.ctrl.getView().gameOver) { expect(Otc.GameController.hasSave(storage)).toBe(true); }
+      }
+      expect(events(t.log, 'gameover').length).toBe(1);
+      expect(Otc.GameController.hasSave(storage)).toBe(false);
+    });
+    it('clearSave は保存を消す', function () {
+      var t = setupSolo();
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      Otc.GameController.clearSave(t.storage);
+      expect(Otc.GameController.hasSave(t.storage)).toBe(false);
+    });
+    it('壊れた JSON / version 違いの save → restore は false', function () {
+      var broken = {};
+      broken[C.SAVE_KEY] = '{not json';
+      var t = makeCtrl({ storage: createMemStorage(broken) });
+      expect(t.ctrl.restore()).toBe(false);
+      expect(t.storage.data[C.SAVE_KEY]).toBe(undefined);
+
+      var good = setupSolo();
+      good.ctrl.play(good.ctrl.getView().legal[0]);
+      var data = JSON.parse(good.storage.data[C.SAVE_KEY]);
+      data.version = C.SAVE_VERSION + 1;
+      var wrong = {};
+      wrong[C.SAVE_KEY] = JSON.stringify(data);
+      var t2 = makeCtrl({ storage: createMemStorage(wrong) });
+      expect(Otc.GameController.hasSave(t2.storage)).toBe(false);
+      expect(t2.ctrl.restore()).toBe(false);
+      expect(t2.storage.data[C.SAVE_KEY]).toBe(undefined);
+
+      data.version = C.SAVE_VERSION;
+      data.cursor = 99;
+      var badCursor = {};
+      badCursor[C.SAVE_KEY] = JSON.stringify(data);
+      expect(makeCtrl({ storage: createMemStorage(badCursor) }).ctrl.restore()).toBe(false);
+    });
+    it('storage が例外を投げても start/play が動く', function () {
+      var st = Object.create(Otc.Storage);
+      st._backend = {
+        getItem: function () { throw new Error('denied'); },
+        setItem: function () { throw new Error('denied'); },
+        removeItem: function () { throw new Error('denied'); }
+      };
+      var t = makeCtrl({ storage: st });
+      t.ctrl.start(soloSettings());
+      expect(t.ctrl.play(t.ctrl.getView().legal[0])).toBe(true);
+      cpuReply(t);
+      expect(t.ctrl.getView().state.moveNo).toBe(2);
+      expect(t.ctrl.restore()).toBe(false);
+      expect(Otc.GameController.hasSave(st)).toBe(false);
+      Otc.GameController.clearSave(st);
+    });
+    it('hasSave/clearSave は引数なしで Otc.Storage を使う', function () {
+      expect(Otc.GameController.hasSave()).toBe(false);
+      Otc.GameController.clearSave();
+    });
+  });
+
+  describe('GameController restore', function () {
+    function savedStore(state, settingsOver) {
+      var init = {};
+      init[C.SAVE_KEY] = JSON.stringify({
+        version: C.SAVE_VERSION, settings: soloSettings(settingsOver), colors: { p1: E.BLACK, p2: E.WHITE },
+        history: [Object.assign({}, state, { cells: Array.from(state.cells) })], cursor: 0
+      });
+      return createMemStorage(init);
+    }
+    it('CPU 手番の局面を restore → CPU が考え始める', function () {
+      var t = setupSolo();
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      var t2 = makeCtrl({ storage: t.storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      var v = t2.ctrl.getView();
+      expect(v.isCpuTurn).toBe(true);
+      expect(v.busy).toBe(true);
+      expect(t2.ai.cpuCalls().length).toBe(1);
+      expect(events(t2.log, 'thinking')).toEqual([{ player: 'p2', on: true }]);
+      cpuReply(t2);
+      expect(t2.ctrl.getView().state.moveNo).toBe(2);
+    });
+    it('終局局面を restore → gameover イベント（勝ち）', function () {
+      var rows = [];
+      for (var r = 0; r < 8; r++) { rows.push('BBBBBBBB'); }
+      var t = makeCtrl({ storage: savedStore(E.stateFromRows(rows, E.BLACK)) });
+      expect(t.ctrl.restore()).toBe(true);
+      var over = events(t.log, 'gameover');
+      expect(over.length).toBe(1);
+      expect(over[0].winner).toBe('p1');
+      expect(t.ai.calls.length).toBe(0);
+      expect(Otc.GameController.hasSave(t.storage)).toBe(false);
+    });
+    it('引き分けの終局局面を restore → gameover の winner は null', function () {
+      var rows = [];
+      for (var r = 0; r < 8; r++) { rows.push(r < 4 ? 'BBBBBBBB' : 'WWWWWWWW'); }
+      var t = makeCtrl({ storage: savedStore(E.stateFromRows(rows, E.BLACK)) });
+      expect(t.ctrl.restore()).toBe(true);
+      var over = events(t.log, 'gameover');
+      expect(over.length).toBe(1);
+      expect(over[0].winner).toBe(null);
+      expect(over[0].result.winner).toBe(0);
+      expect(t.ctrl.getView().gameOver.black).toBe(32);
+    });
+  });
 })(window.Otc);
