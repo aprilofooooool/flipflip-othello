@@ -49,5 +49,23 @@
     return out;
   }
 
-  Otc.Reaction = { PRIORITY: PRIORITY, judge: judge, deltaFor: deltaFor, isCorner: isCorner };
+  // Picks the one full-screen effect of a move from its emotion events ({ player, emotion }).
+  // Game over: only the winner's joy (none on a draw). Solo: only the human (p1); the CPU's emotions show on its avatar only.
+  // Duo: PRIORITY decides, the mover wins a tie.
+  function pickEffect(emotions, mover, over, mode) {
+    var solo = mode === 'solo';
+    if (over) {
+      if (over.winner === null || (solo && over.winner !== 'p1')) { return null; }
+      return emotions.filter(function (x) { return x.player === over.winner && x.emotion === 'joy'; })[0] || null;
+    }
+    if (solo) { return emotions.filter(function (x) { return x.player === 'p1'; })[0] || null; }
+    var rank = function (x) { return PRIORITY.indexOf(x.emotion); };
+    var best = null;
+    emotions.forEach(function (x) {
+      if (!best || rank(x) < rank(best) || (rank(x) === rank(best) && x.player === mover)) { best = x; }
+    });
+    return best;
+  }
+
+  Otc.Reaction = { PRIORITY: PRIORITY, judge: judge, deltaFor: deltaFor, isCorner: isCorner, pickEffect: pickEffect };
 })(window.Otc);

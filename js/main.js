@@ -28,27 +28,12 @@
     function queueFlush() {
       if (batch.timer === null) { batch.timer = setTimeout(flushEmotions, 0); }
     }
-    function pickEmotion(emotions, mover, over) {
-      if (over) {
-        if (over.winner === null) { return null; }
-        return emotions.filter(function (x) { return x.player === over.winner && x.emotion === 'joy'; })[0] || null;
-      }
-      var s = ctrl.getSettings();
-      if (s && s.mode === 'solo') {
-        return emotions.filter(function (x) { return x.player === 'p1'; })[0] || emotions[0] || null;
-      }
-      var rank = function (x) { return Otc.Reaction.PRIORITY.indexOf(x.emotion); };
-      var best = null;
-      emotions.forEach(function (x) {
-        if (!best || rank(x) < rank(best) || (rank(x) === rank(best) && x.player === mover)) { best = x; }
-      });
-      return best;
-    }
     function flushEmotions() {
       var b = batch;
       batch = { emotions: [], mover: null, over: null, timer: null };
       var emotions = b.emotions.filter(function (x) { return x.emotion !== 'normal'; });
-      var pick = pickEmotion(emotions, b.mover, b.over);
+      var s = ctrl.getSettings();
+      var pick = Otc.Reaction.pickEffect(emotions, b.mover, b.over, s ? s.mode : null);
       if (!pick) { return; }
       Otc.Effects.play(pick.emotion, Otc.UI.panelEl(pick.player));
       Otc.Sound.play('reaction', { emotion: pick.emotion });

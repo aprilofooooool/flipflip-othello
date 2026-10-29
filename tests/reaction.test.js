@@ -68,4 +68,21 @@
       expect(R.deltaFor(before, after, B) > 0).toBeTruthy();
     });
   });
+  describe('Reaction.pickEffect', function () {
+    var ev = function (player, emotion) { return { player: player, emotion: emotion }; };
+    it('solo: only the human (p1) emotion is shown; a CPU-only emotion shows nothing', function () {
+      expect(R.pickEffect([ev('p2', 'sadness')], 'p1', null, 'solo')).toBe(null);
+      expect(R.pickEffect([ev('p2', 'joy'), ev('p1', 'panic')], 'p2', null, 'solo').player).toBe('p1');
+    });
+    it('solo game over: human win shows joy, CPU win shows nothing', function () {
+      expect(R.pickEffect([ev('p1', 'joy'), ev('p2', 'sadness')], 'p1', { winner: 'p1' }, 'solo').emotion).toBe('joy');
+      expect(R.pickEffect([ev('p2', 'joy')], 'p2', { winner: 'p2' }, 'solo')).toBe(null);
+    });
+    it('duo: priority decides, the mover wins a tie, draw shows nothing', function () {
+      expect(R.pickEffect([ev('p1', 'joy'), ev('p2', 'anger')], 'p1', null, 'duo').emotion).toBe('anger');
+      expect(R.pickEffect([ev('p1', 'joy'), ev('p2', 'joy')], 'p2', null, 'duo').player).toBe('p2');
+      expect(R.pickEffect([ev('p2', 'joy')], 'p2', { winner: 'p2' }, 'duo').player).toBe('p2');
+      expect(R.pickEffect([ev('p1', 'joy')], 'p1', { winner: null }, 'duo')).toBe(null);
+    });
+  });
 })(window.Otc);

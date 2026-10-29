@@ -86,7 +86,6 @@
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-label', c.name);
       var img = el('div', 'card-img');
-      img.style.backgroundColor = c.colors.sub;
       Otc.CharacterManager.applyImage(img, c, 'normal', 'avatar');
       b.appendChild(img);
       b.appendChild(el('span', 'card-name', c.name));
