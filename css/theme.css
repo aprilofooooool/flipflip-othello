@@ -108,6 +108,11 @@
   --fx-bounce-dur: 700ms;
   --fx-dots-dur: 1.2s;
   --fx-particle-size: 10px;
+  --fx-spark-size: 16px;
+  --fx-burst-flash-size: 70px;
+  --fx-burst-flash-dur: 500ms;
+  --fx-anger-dur: 1600ms;
+  --help-reserve: 44px;
   --fx-anger-size: 44px;
   --fx-bubble-fade: 250ms;
 }

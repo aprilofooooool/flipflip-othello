@@ -2,11 +2,8 @@
   'use strict';
   // Emotion effects on the full-screen #fx-layer, plus per-panel speech bubbles and thinking dots.
 
+  var C = Otc.Const;
   var FADE_MS = 300;
-  var BURSTS = 3;
-  var PER_BURST = 12;
-  var RAIN_COUNT = 30;
-  var SWEAT_COUNT = 12;
 
   var layer = null;
   var groups = []; // { el, timer, shakeEl, bounceEl }
@@ -70,19 +67,29 @@
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
 
-  function buildJoy(g, origin, reduced) {
-    var total = budget(BURSTS * PER_BURST, reduced);
-    var bursts = reduced ? 1 : BURSTS;
+  // Bursts open over the board (fixed spots as fractions of its box), each with a short gold center flash.
+  var BURST_SPOTS = [[0.28, 0.32], [0.72, 0.28], [0.5, 0.66]];
+
+  function buildJoy(g, reduced) {
+    var board = document.querySelector('#screen-game .board');
+    var r = board ? board.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    var total = budget(C.JOY_BURSTS * C.JOY_PER_BURST, reduced);
+    var bursts = reduced ? 1 : C.JOY_BURSTS;
     var per = Math.ceil(total / bursts);
     var made = 0;
-    var vw = window.innerWidth;
     for (var b = 0; b < bursts && made < total; b += 1) {
-      var bx = Math.max(40, Math.min(vw - 40, origin.x + (b - 1) * 70));
-      var by = origin.y - 40 - (b % 2) * 50;
+      var bx = r.left + r.width * BURST_SPOTS[b][0];
+      var by = r.top + r.height * BURST_SPOTS[b][1];
+      var delay = b * 300;
+      var flash = el('div', 'fx-burst');
+      flash.style.setProperty('--x', bx + 'px');
+      flash.style.setProperty('--y', by + 'px');
+      flash.style.setProperty('--d', delay + 'ms');
+      g.el.appendChild(flash);
       for (var k = 0; k < per && made < total; k += 1) {
         var ang = (k / per) * Math.PI * 2;
-        var r = 50 + (k % 3) * 18;
-        addParticle(g.el, 'fx-spark' + (k % 2 ? ' alt' : ''), bx, by, Math.cos(ang) * r, Math.sin(ang) * r, b * 250);
+        var rad = 100 + (k % 3) * 20;
+        addParticle(g.el, 'fx-spark' + (k % 2 ? ' alt' : ''), bx, by, Math.cos(ang) * rad, Math.sin(ang) * rad, delay);
         made += 1;
       }
     }
@@ -93,16 +100,18 @@
     g.el.appendChild(flash);
     var mark = el('div', 'fx-anger');
     mark.appendChild(el('i'));
-    var x = avatarRect ? avatarRect.right - 10 : origin.x;
-    var y = avatarRect ? avatarRect.top - 24 : origin.y;
+    g.el.appendChild(mark);
+    // Above the avatar's top-right corner, clear of the tag and the name.
+    var size = mark.offsetHeight;
+    var x = avatarRect ? avatarRect.right - size / 2 : origin.x;
+    var y = avatarRect ? avatarRect.top - size - 4 : origin.y;
     mark.style.setProperty('--x', Math.max(0, x) + 'px');
     mark.style.setProperty('--y', Math.max(0, y) + 'px');
-    g.el.appendChild(mark);
   }
 
   function buildSadness(g, reduced) {
     g.el.appendChild(el('div', 'fx-dim'));
-    var n = budget(RAIN_COUNT, reduced);
+    var n = budget(C.RAIN_COUNT, reduced);
     var w = window.innerWidth;
     var h = window.innerHeight;
     for (var i = 0; i < n; i += 1) {
@@ -112,7 +121,7 @@
   }
 
   function buildPanic(g, origin, reduced) {
-    var n = budget(SWEAT_COUNT, reduced);
+    var n = budget(C.SWEAT_COUNT, reduced);
     for (var i = 0; i < n; i += 1) {
       var side = i % 2 ? 1 : -1;
       addParticle(g.el, 'fx-sweat', origin.x + side * (20 + (i % 3) * 14), origin.y - 20, side * (10 + (i % 4) * 8), 70 + (i % 3) * 20, (i % 6) * 150);
@@ -132,7 +141,7 @@
     groups.push(g);
 
     if (emotion === 'joy') {
-      buildJoy(g, origin, reduced);
+      buildJoy(g, reduced);
       if (avatar && !reduced) { g.bounceEl = avatar; avatar.classList.remove('fx-bounce'); void avatar.offsetWidth; avatar.classList.add('fx-bounce'); }
     } else if (emotion === 'anger') {
       buildAnger(g, origin, avatarRect);

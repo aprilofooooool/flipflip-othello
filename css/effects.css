@@ -27,7 +27,24 @@
 }
 
 /* Joy: gold fireworks */
-.fx-spark { border-radius: 50%; background: var(--fx-gold); box-shadow: 0 0 6px 2px var(--fx-gold-light); }
+.fx-spark { width: var(--fx-spark-size); height: var(--fx-spark-size); border-radius: 50%; background: var(--fx-gold); box-shadow: 0 0 8px 3px var(--fx-gold-light); }
+.fx-burst {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--fx-burst-flash-size);
+  height: var(--fx-burst-flash-size);
+  margin: calc(var(--fx-burst-flash-size) / -2) 0 0 calc(var(--fx-burst-flash-size) / -2);
+  border-radius: 50%;
+  background: radial-gradient(var(--fx-gold-light), var(--fx-gold) 55%, transparent 72%);
+  opacity: 0;
+  animation: fx-burst var(--fx-burst-flash-dur) ease-out var(--d) both;
+}
+@keyframes fx-burst {
+  0% { opacity: 0; transform: scale(0.2); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(2.2); }
+}
 .fx-spark.alt { background: var(--fx-gold-light); }
 .fx-spark { --dur: var(--fx-burst); }
 .fx-bounce { animation: fx-bounce var(--fx-bounce-dur) ease-out 2; }
@@ -58,7 +75,7 @@
   width: var(--fx-anger-size);
   height: var(--fx-anger-size);
   opacity: 0;
-  animation: fx-anger-pop 1600ms ease-out both;
+  animation: fx-anger-pop var(--fx-anger-dur) ease-out both;
 }
 .fx-anger::before, .fx-anger::after, .fx-anger i::before, .fx-anger i::after {
   content: "";
@@ -139,6 +156,8 @@ html.fx-shaking, html.fx-shaking body { overflow: hidden; }
   transition: opacity var(--fx-bubble-fade) ease;
 }
 .bubble.fx-out { opacity: 0; }
+/* The 2P help button sits over the right end of the 2P panel: keep bubble text clear of it. */
+.side-p2 .bubble { margin-right: var(--help-reserve); }
 .bubble::before {
   content: "";
   position: absolute;
@@ -176,7 +195,8 @@ html.fx-shaking, html.fx-shaking body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   #fx-layer .fx-flash { animation: fx-flash var(--fx-flash-dur-reduced) ease-out both !important; }
   #fx-layer .fx-dim { animation: fx-dim calc(var(--fx-rain-dur) * 2) ease-in-out both !important; }
-  #fx-layer .fx-anger { animation: fx-anger-pop 1600ms ease-out both !important; }
+  #fx-layer .fx-anger { animation: fx-anger-pop var(--fx-anger-dur) ease-out both !important; }
+  #fx-layer .fx-burst { animation: fx-burst var(--fx-burst-flash-dur) ease-out var(--d) both !important; }
   #fx-layer .fx-p { animation: fx-travel var(--dur) ease-out var(--d) both !important; }
   .bubble-dots span { animation: fx-dot var(--fx-dots-dur) ease-in-out infinite !important; }
   #screen-game.fx-shake { animation: none !important; }

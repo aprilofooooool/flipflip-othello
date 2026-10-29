@@ -57,6 +57,11 @@
     EMOTION_HOLD_MS: 2000,
     BUBBLE_MS: 2500,
     MAX_PARTICLES: 40,
+    // Effect sizes: joy bursts x particles per burst, rain drops, sweat drops (each capped by MAX_PARTICLES in total).
+    JOY_BURSTS: 3,
+    JOY_PER_BURST: 10,
+    RAIN_COUNT: 30,
+    SWEAT_COUNT: 12,
     AI_LEVELS: {
       easy: { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 0.3 },
       normal: { depth: 3, timeMs: 1000, endgameEmpties: 8, randomRate: 0 },
