@@ -1,7 +1,9 @@
-#screen-top { display: flex; justify-content: center; }
+#screen-top { display: flex; flex-direction: column; padding-bottom: 0; }
 .top-wrap {
   width: 100%;
   max-width: var(--content-max);
+  margin: 0 auto;
+  flex: 1;
   padding: 12px 16px 0;
   display: flex;
   flex-direction: column;
@@ -19,8 +21,8 @@
     -3px -3px 0 var(--outline), 3px -3px 0 var(--outline), -3px 3px 0 var(--outline), 3px 3px 0 var(--outline),
     0 -3px 0 var(--outline), 0 3px 0 var(--outline), -3px 0 0 var(--outline), 3px 0 0 var(--outline),
     0 6px 0 var(--outline);
-  animation: logo-pop var(--t-pop) ease-out both, logo-bob 2.4s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 60ms), calc(1s + var(--i) * 120ms);
+  animation: logo-pop var(--t-pop) ease-out both, logo-bob var(--logo-bob-dur) ease-in-out infinite;
+  animation-delay: calc(var(--i) * var(--logo-pop-stagger)), calc(var(--logo-bob-delay) + var(--i) * var(--logo-bob-stagger));
 }
 .logo-ch.c0 { color: var(--accent-pink); }
 .logo-ch.c1 { color: var(--accent-yellow); }
@@ -34,7 +36,7 @@
 }
 .logo-egg.left { left: 4px; transform: rotate(-14deg); background: var(--accent-yellow); }
 .logo-egg.right { right: 4px; transform: rotate(14deg); background: var(--accent-blue); }
-.logo img { max-width: 100%; max-height: 120px; }
+.logo img { max-width: 100%; max-height: var(--logo-max-h); }
 @keyframes logo-pop {
   0% { transform: scale(0) rotate(-20deg); opacity: 0; }
   70% { transform: scale(1.25) rotate(6deg); opacity: 1; }
@@ -125,8 +127,7 @@
 .actions {
   position: sticky;
   bottom: 0;
-  margin: 0 -16px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px max(16px, calc((100% - var(--content-max)) / 2 + 16px)) calc(10px + env(safe-area-inset-bottom));
   background: var(--bg);
   border-top: var(--border-w) solid var(--outline);
   display: flex;
@@ -134,7 +135,7 @@
   gap: 8px;
   z-index: 5;
 }
-.reason { margin: 0; min-height: 1.3em; text-align: center; font-weight: 800; color: var(--accent-pink-strong); font-size: 0.85rem; }
+.reason { margin: 0; min-height: 1.3em; text-align: center; font-weight: 800; color: var(--accent-pink-strong); font-size: 0.95rem; }
 .actions-row { display: flex; gap: 10px; }
 .actions-row .btn { flex: 1; }
 

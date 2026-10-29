@@ -41,6 +41,7 @@
   /* Shadow */
   --shadow-s: 0 3px 0 var(--outline);
   --shadow-m: 0 5px 0 var(--outline);
+  --overlay: rgba(58, 47, 90, 0.55);
   --shadow-soft: 0 8px 20px rgba(58, 47, 90, 0.18);
 
   /* Animation times */
@@ -48,6 +49,10 @@
   --t-ui: 180ms;
   --t-pop: 600ms;
   --t-flip: 400ms;
+  --logo-bob-dur: 2.4s;
+  --logo-bob-delay: 1s;
+  --logo-pop-stagger: 60ms;
+  --logo-bob-stagger: 120ms;
 
   /* Font */
   --font: "Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Yu Gothic UI", system-ui, sans-serif;
@@ -55,4 +60,7 @@
   /* Sizes */
   --tap-min: 48px;
   --content-max: 560px;
+  --modal-max-w: 420px;
+  --modal-max-h: 90dvh;
+  --logo-max-h: 120px;
 }

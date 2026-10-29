@@ -117,6 +117,7 @@
     if (state.mode === 'solo') { return state.p1 ? '' : 'キャラを えらんでね'; }
     if (!state.p1) { return '1Pの キャラを えらんでね'; }
     if (!state.p2) { return '2Pの キャラを えらんでね'; }
+    if (state.p1 === state.p2) { return 'おなじ キャラは えらべないよ'; }
     return '';
   }
 
@@ -229,7 +230,8 @@
 
     var modePanel = makePanel('だれと あそぶ？');
     makeChoices(modePanel, 'モード', [['solo', 'ひとりであそぶ'], ['duo', 'ふたりであそぶ']], 'mode', function () {
-      if (state.mode === 'solo' && state.p1 && !state.cpu) { rerollCpu(); }
+      if (state.mode === 'duo' && state.p2 === state.p1) { state.p2 = null; }
+      if (state.mode === 'solo' && state.p1 && (!state.cpu || state.cpu === state.p1)) { rerollCpu(); }
     });
     root.appendChild(modePanel);
 
@@ -280,7 +282,7 @@
     var subRow = el('div', 'sub-row');
     var how = el('button', 'btn btn-sub', 'あそびかた');
     how.type = 'button';
-    how.setAttribute('aria-label', 'あそびかたを見る');
+    how.setAttribute('aria-label', 'あそびかたを みる');
     how.addEventListener('click', showHowTo);
     els.sound = el('button', 'btn btn-sub');
     els.sound.type = 'button';
@@ -314,13 +316,13 @@
     row.appendChild(els.start);
     actions.appendChild(els.reason);
     actions.appendChild(row);
-    root.appendChild(actions);
+    wrap.appendChild(root);
+    wrap.appendChild(actions);
 
     var footer = el('footer', 'footer');
     footer.appendChild(el('div', null, 'バージョン ' + Otc.APP_VERSION));
     footer.appendChild(el('div', null, 'ひこうしきファンメイド（非公式・非営利）。けんりしゃとは かんけいありません'));
     root.appendChild(footer);
-    wrap.appendChild(root);
   }
 
   function readSettings() {
