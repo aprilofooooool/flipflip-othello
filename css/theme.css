@@ -31,6 +31,12 @@
   --disc-black: #3a2f5a;
   --disc-white: #ffffff;
 
+  --board-edge: #5fc9a0;
+  --legal-dot: rgba(58, 47, 90, 0.4);
+  --assist-ring: #ffc83a;
+  --last-mark: #ff5c9a;
+  --glow: rgba(255, 200, 58, 0.75);
+
   /* Shape */
   --radius-s: 12px;
   --radius-m: 20px;
@@ -49,6 +55,9 @@
   --t-ui: 180ms;
   --t-pop: 600ms;
   --t-flip: 400ms;
+  --t-place: 260ms;
+  --t-glow: 1.6s;
+  --t-sparkle: 1.2s;
   --logo-bob-dur: 2.4s;
   --logo-bob-delay: 1s;
   --logo-pop-stagger: 60ms;
@@ -63,4 +72,16 @@
   --modal-max-w: 420px;
   --modal-max-h: 90dvh;
   --logo-max-h: 120px;
+  --gap: 8px;
+  --panel-h: 88px;
+  --controls-h: 64px;
+  --board-gap: 2px;
+  --board-max: 760px;
+  --panel-w-max: 280px;
+  --panel-w-min: 150px;
+  --avatar-size: 64px;
+  --disc-inset: 8%;
+  --disc-ring: 3px;
+  --flip-perspective: 500px;
+  --pass-banner-w: 80%;
 }

@@ -37,6 +37,10 @@
     // Game-in-progress save (localStorage key via Otc.Storage) and its format version.
     SAVE_KEY: 'otc.save.v1',
     SAVE_VERSION: 1,
+    // Flip animation: delay per Chebyshev distance step from the placed disc (ms).
+    FLIP_STAGGER_MS: 70,
+    // Wait before the result modal opens so the last flips can finish (ms).
+    RESULT_DELAY_MS: 1000,
     // Top screen settings (localStorage key via Otc.Storage).
     SETTINGS_KEY: 'otc.settings.v1',
     // Path to a logo image shown instead of the CSS logo. null = CSS logo.

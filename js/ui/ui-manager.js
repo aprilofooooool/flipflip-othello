@@ -1,6 +1,6 @@
 (function (Otc) {
   'use strict';
-  // Top (settings) screen. The play screen part is added by a later task.
+  // Top (settings) screen and play screen.
 
   var LEVELS = [['easy', 'やさしい'], ['normal', 'ふつう'], ['strong', 'つよい']];
   var HANDICAPS = [[0, 'なし'], [1, 'すみ1'], [2, 'すみ2'], [3, 'すみ3'], [4, 'すみ4']];
@@ -162,6 +162,14 @@
     els.resume.hidden = !Otc.GameController.hasSave();
     els.sound.setAttribute('aria-pressed', String(state.sound));
     els.sound.textContent = state.sound ? 'おと：ON' : 'おと：OFF';
+  }
+
+  function toggleSound() {
+    state.sound = !state.sound;
+    saveState();
+    render();
+    if (callbacks.onSoundToggle) { callbacks.onSoundToggle(state.sound); }
+    return state.sound;
   }
 
   function openModal(title, bodyNodes) {
@@ -345,6 +353,404 @@
     document.getElementById('screen-game').hidden = name !== 'game';
   }
 
+  // ---------------------------------------------------------------- play screen
+
+  var G = null; // the bound game: { ctrl, offs, settings, chars, panels, cells, ... }
+  var gameActive = false;
+  var pushed = false;
+  var ignorePop = false;
+  var popBound = false;
+  var confirmBack = null;
+  var resultBack = null;
+  var resultTimer = null;
+
+  function closeNode(node) {
+    if (node && node.parentNode) { node.parentNode.removeChild(node); }
+  }
+
+  function buildModal(title, bodyNodes, buttons) {
+    var back = el('div', 'modal-back');
+    var box = el('div', 'modal');
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', title);
+    bodyNodes.forEach(function (n) { box.appendChild(n); });
+    var actions = el('div', 'modal-actions');
+    buttons.forEach(function (b) {
+      var btn = el('button', 'btn ' + b.cls, b.text);
+      btn.type = 'button';
+      btn.setAttribute('aria-label', b.label || b.text);
+      btn.addEventListener('click', b.onClick);
+      actions.appendChild(btn);
+    });
+    box.appendChild(actions);
+    back.appendChild(box);
+    document.getElementById('modal-root').appendChild(back);
+    if (actions.firstChild) { actions.firstChild.focus(); }
+    return back;
+  }
+
+  // Resolves true for "yes", false for "no". A newer confirm cancels an open one.
+  function confirmDialog(message) {
+    if (confirmBack) { confirmBack.cancel(); }
+    return new Promise(function (resolve) {
+      var back;
+      function done(v) {
+        closeNode(back);
+        if (confirmBack === back) { confirmBack = null; }
+        resolve(v);
+      }
+      back = buildModal(message, [el('p', 'confirm-msg', message)], [
+        { text: 'やめる', cls: 'btn-sub', onClick: function () { done(false); } },
+        { text: 'うん', cls: 'btn-main', onClick: function () { done(true); } }
+      ]);
+      back.cancel = function () { done(false); };
+      confirmBack = back;
+    });
+  }
+
+  function closeResult() {
+    if (resultTimer) { clearTimeout(resultTimer); resultTimer = null; }
+    closeNode(resultBack);
+    resultBack = null;
+  }
+
+  // gameoverEvent: the 'gameover' payload { result, winner: 'p1'|'p2'|null }. Safe to call twice.
+  function showResult(gameoverEvent, view) {
+    closeResult();
+    if (!G) { return; }
+    var winner = gameoverEvent.winner;
+    var solo = G.settings.mode === 'solo';
+    var title;
+    if (winner === null) { title = 'ひきわけ！'; }
+    else if (solo) { title = winner === 'p1' ? 'かち！' : 'まけ…'; }
+    else { title = (winner === 'p1' ? '1P' : '2P') + 'の かち！'; }
+    var score = el('p', 'result-score', '1P ' + view.counts.p1 + ' - ' + view.counts.p2 + ' ' + (solo ? 'CPU' : '2P'));
+    resultBack = buildModal(title, [el('h2', 'result-title', title), score], [
+      { text: 'ばんを みる', cls: 'btn-sub', onClick: closeResult },
+      { text: 'トップへ', cls: 'btn-sub', onClick: function () { closeResult(); leaveGame(false); } },
+      { text: 'もういちど', cls: 'btn-main', onClick: function () { closeResult(); restartGame(); } }
+    ]);
+  }
+
+  function showHelp() { showHowTo(); }
+
+  function enterGame() {
+    showScreen('game');
+    if (gameActive) { return; }
+    gameActive = true;
+    try {
+      history.pushState({ screen: 'game' }, '');
+      pushed = true;
+    } catch (e) { pushed = false; }
+    if (!popBound) {
+      popBound = true;
+      window.addEventListener('popstate', onPopState);
+    }
+  }
+
+  function onPopState() {
+    if (ignorePop) { ignorePop = false; return; }
+    if (!gameActive) { return; }
+    pushed = false;
+    confirmDialog('トップへ もどる？').then(function (ok) {
+      if (!gameActive) { return; }
+      if (ok) { leaveGame(true); return; }
+      try { history.pushState({ screen: 'game' }, ''); pushed = true; } catch (e) { pushed = false; }
+    });
+  }
+
+  function leaveGame(fromPopstate) {
+    if (!gameActive) { return; }
+    gameActive = false;
+    closeResult();
+    if (G) { G.ctrl.stop(); unbindGame(); }
+    showScreen('top');
+    if (!fromPopstate && pushed) {
+      ignorePop = true;
+      history.back();
+    }
+    pushed = false;
+  }
+
+  function restartGame() {
+    if (!G) { return; }
+    closeResult();
+    G.ctrl.start(G.settings);
+    G.ctrl.notifyActivity();
+  }
+
+  function unbindGame() {
+    if (!G) { return; }
+    G.offs.forEach(function (off) { off(); });
+    G.root.innerHTML = '';
+    G = null;
+  }
+
+  function cheb(a, b, size) {
+    return Math.max(Math.abs(Math.floor(a / size) - Math.floor(b / size)), Math.abs((a % size) - (b % size)));
+  }
+
+  function makeCharPanel(player, ch, tag) {
+    var p = el('section', 'char-panel side-' + player);
+    var avatar = el('div', 'avatar');
+    avatar.style.backgroundColor = ch.colors.sub;
+    var info = el('div', 'panel-info');
+    info.appendChild(el('span', 'panel-tag', tag));
+    info.appendChild(el('span', 'panel-name', ch.name));
+    var count = el('span', 'panel-count');
+    count.appendChild(document.createTextNode('0'));
+    count.appendChild(el('small', null, 'こ'));
+    info.appendChild(count);
+    info.appendChild(el('span', 'turn-mark', 'てばん'));
+    var bubble = el('div', 'bubble-slot');
+    bubble.dataset.player = player;
+    p.appendChild(avatar);
+    p.appendChild(info);
+    p.appendChild(bubble);
+    return { root: p, avatar: avatar, count: count, bubble: bubble, emotion: null, ch: ch };
+  }
+
+  function setAvatar(panel, emotion) {
+    if (panel.emotion === emotion) { return; }
+    panel.emotion = emotion;
+    Otc.CharacterManager.applyImage(panel.avatar, panel.ch, emotion, 'avatar');
+  }
+
+  function makeControl(icon, text, label, onClick) {
+    var b = el('button', 'btn ctl');
+    b.type = 'button';
+    b.setAttribute('aria-label', label);
+    var i = el('span', 'ico', icon);
+    i.setAttribute('aria-hidden', 'true');
+    b.appendChild(i);
+    b.appendChild(el('span', 'ctl-text', text));
+    b.addEventListener('click', function () {
+      if (b.disabled || !G) { return; }
+      G.ctrl.notifyActivity();
+      onClick();
+    });
+    return b;
+  }
+
+  function buildKey(view) {
+    return [G.settings.p1, G.settings.p2, view.colors.p1, view.state.size].join('|');
+  }
+
+  function buildGameDom(view) {
+    var s = G.settings;
+    var size = view.state.size;
+    G.chars = { p1: Otc.CharacterManager.get(s.p1), p2: Otc.CharacterManager.get(s.p2) };
+    G.blackSide = view.colors.p1 === Otc.Engine.BLACK ? 'p1' : 'p2';
+    G.panels = {
+      p1: makeCharPanel('p1', G.chars.p1, '1P'),
+      p2: makeCharPanel('p2', G.chars.p2, s.mode === 'solo' ? 'CPU' : '2P')
+    };
+    var help = el('button', 'btn help-btn', '？');
+    help.type = 'button';
+    help.setAttribute('aria-label', 'あそびかたを みる');
+    help.addEventListener('click', function () { G.ctrl.notifyActivity(); showHelp(); });
+    G.panels.p2.root.appendChild(help);
+
+    var wrap = el('div', 'board-wrap');
+    var board = el('div', 'board');
+    board.style.setProperty('--n', String(size));
+    board.setAttribute('aria-label', 'ばん');
+    board.addEventListener('pointerdown', function () { G.ctrl.notifyActivity(); });
+    G.cells = [];
+    for (var i = 0; i < size * size; i += 1) {
+      var c = el('button', 'cell');
+      c.type = 'button';
+      c.setAttribute('aria-label', Otc.Engine.toName(i, size));
+      c.dataset.index = String(i);
+      c.addEventListener('click', onCellClick);
+      board.appendChild(c);
+      G.cells.push({ el: c, disc: null });
+    }
+    G.board = board;
+    wrap.appendChild(board);
+    G.banner = el('button', 'pass-banner');
+    G.banner.type = 'button';
+    G.banner.hidden = true;
+    G.banner.addEventListener('click', function () { G.ctrl.notifyActivity(); G.ctrl.skipPass(); });
+    wrap.appendChild(G.banner);
+
+    var ctl = el('div', 'controls');
+    G.btn = {
+      undo: makeControl('↩', 'もどす', '1つ もどす', function () { G.ctrl.undo(); afterHistoryMove(); }),
+      redo: makeControl('↪', 'すすめる', '1つ すすめる', function () { G.ctrl.redo(); afterHistoryMove(); }),
+      assist: makeControl('✨', 'アシスト', 'アシストの オンオフ', function () {
+        G.assistOn = !G.assistOn;
+        G.ctrl.setAssist(G.assistOn);
+        renderControls();
+      }),
+      sound: makeControl('♪', 'おと', 'おとの オンオフ', function () { toggleSound(); renderControls(); }),
+      reset: makeControl('⟲', 'リセット', 'さいしょから やりなおす', function () {
+        confirmDialog('さいしょから やりなおす？').then(function (ok) { if (ok && G) { restartGame(); } });
+      }),
+      top: makeControl('⌂', 'トップ', 'トップへ もどる', function () {
+        confirmDialog('トップへ もどる？').then(function (ok) { if (ok) { leaveGame(false); } });
+      })
+    };
+    ['undo', 'redo', 'assist', 'sound', 'reset', 'top'].forEach(function (k) { ctl.appendChild(G.btn[k]); });
+
+    var game = el('div', 'game');
+    game.appendChild(G.panels.p2.root);
+    game.appendChild(wrap);
+    game.appendChild(G.panels.p1.root);
+    game.appendChild(ctl);
+    G.root.innerHTML = '';
+    G.root.appendChild(game);
+    setAvatar(G.panels.p1, 'normal');
+    setAvatar(G.panels.p2, 'normal');
+    G.key = buildKey(view);
+  }
+
+  // After Undo / Redo the controller sends no emotion events, so both avatars go back to normal.
+  function afterHistoryMove() {
+    ['p1', 'p2'].forEach(function (p) {
+      G.panels[p].root.classList.remove('thinking');
+      setAvatar(G.panels[p], 'normal');
+    });
+  }
+
+  function onCellClick(e) {
+    if (!G) { return; }
+    G.ctrl.notifyActivity();
+    G.ctrl.play(Number(e.currentTarget.dataset.index));
+  }
+
+  // Front face = the black-disc player, back face = the white-disc player (rotateY(180deg) shows the back).
+  function makeDisc() {
+    var d = el('div', 'disc');
+    var white = G.blackSide === 'p1' ? 'p2' : 'p1';
+    [['front', G.blackSide], ['back', white]].forEach(function (f) {
+      var face = el('div', 'face ' + f[0]);
+      var ch = G.chars[f[1]];
+      face.style.setProperty('--ring', ch.colors.main);
+      face.style.setProperty('--ring-bg', ch.colors.sub);
+      Otc.CharacterManager.applyImage(face, ch, 'normal', 'disc');
+      d.appendChild(face);
+    });
+    return d;
+  }
+
+  function flipDone(disc) {
+    function off(e) {
+      if (e.propertyName !== 'transform') { return; }
+      disc.removeEventListener('transitionend', off);
+      disc.classList.remove('flipping');
+      disc.style.transitionDelay = '';
+    }
+    disc.addEventListener('transitionend', off);
+  }
+
+  function renderBoard(view, moved) {
+    var state = view.state;
+    var size = state.size;
+    var flipSet = {};
+    if (moved) { moved.flipped.forEach(function (i) { flipSet[i] = true; }); }
+    var instant = [];
+    var legal = {};
+    if (!view.isCpuTurn && !view.gameOver) { view.legal.forEach(function (i) { legal[i] = true; }); }
+    for (var i = 0; i < state.cells.length; i += 1) {
+      var cell = G.cells[i];
+      var v = state.cells[i];
+      var wantB = v === Otc.Engine.WHITE;
+      if (v === 0) {
+        if (cell.disc) { closeNode(cell.disc); cell.disc = null; }
+      } else if (!cell.disc) {
+        var d = makeDisc();
+        d.classList.toggle('side-b', wantB);
+        if (moved && moved.index === i) { d.classList.add('placed'); }
+        cell.el.appendChild(d);
+        cell.disc = d;
+      } else if (cell.disc.classList.contains('side-b') !== wantB) {
+        var disc = cell.disc;
+        disc.classList.remove('placed');
+        if (flipSet[i]) {
+          disc.style.transitionDelay = (cheb(i, moved.index, size) * Otc.Const.FLIP_STAGGER_MS) + 'ms';
+          disc.classList.add('flipping');
+          disc.classList.toggle('side-b', wantB);
+          flipDone(disc);
+        } else {
+          disc.classList.add('instant');
+          disc.classList.toggle('side-b', wantB);
+          instant.push(disc);
+        }
+      }
+      cell.el.classList.toggle('legal', !!legal[i]);
+      cell.el.classList.toggle('last', state.lastMove === i);
+    }
+    if (instant.length > 0) {
+      void G.board.offsetWidth;
+      instant.forEach(function (disc) { disc.classList.remove('instant'); });
+    }
+    G.board.classList.toggle('is-busy', view.busy);
+  }
+
+  function renderControls() {
+    if (!G || !G.btn) { return; }
+    var soundOn = state ? state.sound : true;
+    G.btn.undo.disabled = !G.ctrl.canUndo();
+    G.btn.redo.disabled = !G.ctrl.canRedo();
+    G.btn.assist.setAttribute('aria-pressed', String(G.assistOn));
+    G.btn.sound.setAttribute('aria-pressed', String(soundOn));
+    G.btn.sound.querySelector('.ctl-text').textContent = soundOn ? 'おと' : 'おと OFF';
+  }
+
+  function onState(view) {
+    if (!G) { return; }
+    G.settings = G.ctrl.getSettings() || G.settings;
+    if (!G.chars || G.key !== buildKey(view)) { buildGameDom(view); }
+    var moved = G.moved;
+    G.moved = null;
+    renderBoard(view, moved);
+    ['p1', 'p2'].forEach(function (p) {
+      var panel = G.panels[p];
+      panel.count.firstChild.nodeValue = String(view.counts[p]);
+      panel.root.classList.toggle('turn', !view.gameOver && view.turnPlayer === p);
+    });
+    G.banner.hidden = true;
+    if (!view.gameOver) { closeResult(); }
+    renderControls();
+  }
+
+  // Subscribes to the controller bus and wires the buttons. Call before or after ctrl.start().
+  function bindGame(ctrl) {
+    if (G) { unbindGame(); }
+    enterGame();
+    var bus = Otc.bus;
+    G = { ctrl: ctrl, root: document.getElementById('screen-game'), offs: [], settings: ctrl.getSettings(), chars: null, assistOn: false };
+    G.assistOn = !!(G.settings && G.settings.assist);
+    G.offs.push(bus.on('state', onState));
+    G.offs.push(bus.on('moved', function (e) { if (G) { G.moved = e; } }));
+    G.offs.push(bus.on('emotion', function (e) { if (G && G.panels) { setAvatar(G.panels[e.player], e.emotion); } }));
+    G.offs.push(bus.on('thinking', function (e) {
+      if (G && G.panels) { G.panels[e.player].root.classList.toggle('thinking', e.on); }
+    }));
+    G.offs.push(bus.on('assist', function (e) {
+      if (!G || !G.cells) { return; }
+      G.cells.forEach(function (c, i) { c.el.classList.toggle('assist', e.index === i); });
+    }));
+    G.offs.push(bus.on('busy', function (e) { if (G && G.board) { G.board.classList.toggle('is-busy', e.on); } }));
+    G.offs.push(bus.on('pass', function (e) {
+      if (!G || !G.banner) { return; }
+      G.banner.textContent = G.chars[e.player].name + 'は パス！';
+      G.banner.appendChild(el('small', null, 'タップで つぎへ'));
+      G.banner.hidden = false;
+    }));
+    G.offs.push(bus.on('gameover', function (e) {
+      if (resultTimer) { clearTimeout(resultTimer); }
+      resultTimer = setTimeout(function () {
+        resultTimer = null;
+        if (G) { showResult(e, ctrl.getView()); }
+      }, Otc.Const.RESULT_DELAY_MS);
+    }));
+    if (G.settings) { onState(ctrl.getView()); }
+    return unbindGame;
+  }
+
   function init(cb) {
     callbacks = cb || {};
     state = loadState();
@@ -357,6 +763,10 @@
     init: init,
     showScreen: showScreen,
     readSettings: readSettings,
-    isSoundOn: function () { return state.sound; }
+    isSoundOn: function () { return state.sound; },
+    bindGame: bindGame,
+    confirm: confirmDialog,
+    showResult: showResult,
+    showHelp: showHelp
   };
 })(window.Otc);

@@ -457,6 +457,7 @@
     return {
       start: start, play: play, undo: undo, redo: redo, canUndo: canUndo, canRedo: canRedo,
       skipPass: skipPass, stop: stop, getView: getView,
+      getSettings: function () { return settings; },
       setAssist: setAssist, notifyActivity: notifyActivity, restore: restore
     };
   }

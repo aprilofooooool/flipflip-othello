@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/top.css">
+<link rel="stylesheet" href="css/game.css">
 </head>
 <body>
 <main id="screen-top" class="screen"></main>
@@ -31,8 +32,16 @@
 <script src="js/ui/ui-manager.js"></script>
 <script src="js/main.js"></script>
 <script>
-  // Temporary: main.js is not implemented yet.
-  Otc.UI.init({ onStart: function () {}, onResume: function () {}, onSoundToggle: function () {} });
+  // TEMP (Task 14): main.js replaces this block (creates the controller and wires start / resume).
+  (function () {
+    var ctrl = Otc.GameController.create({});
+    Otc.UI.init({
+      onStart: function (settings) { Otc.UI.bindGame(ctrl); ctrl.start(settings); },
+      onResume: function () { Otc.UI.bindGame(ctrl); ctrl.restore(); },
+      onSoundToggle: function () {}
+    });
+    window.__ctrl = ctrl;
+  })();
 </script>
 </body>
 </html>
