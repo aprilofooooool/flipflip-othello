@@ -36,7 +36,7 @@ assets/characters/<キャラid>/<感情>.png
 1. `assets/characters/<新しいid>/` を作り、6 感情の画像を置きます。
 2. `js/data/characters.js` の配列に 1 エントリ足します。配列の順番が選択画面の並び順です。
    - `id`, `name`, `colors`, `image: { dir, ext, hasDisc }`, `face`, `voice`, `lines`
-3. `lines` は 13 の状況ぜんぶに、**3 種類以上**のセリフを書きます。1 つは 20 文字以内で、ひらがな多めにします。
+3. `lines` は 13 の状況ぜんぶに、**3 種類以上**のセリフを書きます。どのセリフも 20 文字以内で、ひらがな多めにします。
    - 状況: `gameStart` / `turnStart` / `thinking` / `goodMove` / `cornerTaken` / `cornerLost` / `manyFlipped` / `pass` / `losing` / `winning` / `win` / `lose` / `draw`
    - 公式のセリフは写さず、オリジナルの文にします。
 4. `node tests/run-node.js` を実行して、テストが通ることを確認します（セリフ数や文字数も点検されます）。

@@ -134,7 +134,7 @@ for (const f of appFiles) {
 const allowedNames = new Set(['README.md', 'CHANGELOG.md']);
 function walkNames(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (dir === root && ['.git', '.claude', '.superpowers', 'node_modules'].includes(e.name)) { continue; }
+    if (dir === root && ['.git', '.claude', '.superpowers', '.playwright-mcp', 'node_modules'].includes(e.name)) { continue; }
     if (!allowedNames.has(e.name) && !/^[a-z0-9.-]+$/.test(e.name)) {
       problems.push(rel(path.join(dir, e.name)) + ': invalid name');
     }

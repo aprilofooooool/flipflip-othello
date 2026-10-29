@@ -18,3 +18,6 @@ node_modules/
 
 # regenerable placeholder art intermediates
 tools/placeholder-art/svg/
+
+# Playwright MCP scratch output
+.playwright-mcp/
