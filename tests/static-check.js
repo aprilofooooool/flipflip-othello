@@ -143,6 +143,18 @@ function walkNames(dir) {
 }
 walkNames(root);
 
+// 4. Disc keyframes: animating opacity flattens the preserve-3d disc, and the back face then shows the front mirrored.
+const gameCss = path.join(root, 'css', 'game.css');
+if (exists(gameCss)) {
+  const css = read(gameCss);
+  const used = new Set();
+  for (const m of css.matchAll(/\.disc[^{]*\{[^}]*animation:\s*([\w-]+)/g)) { used.add(m[1]); }
+  for (const name of used) {
+    const kf = css.match(new RegExp('@keyframes\\s+' + name + '\\s*\\{([\\s\\S]*?)\\n\\}'));
+    if (kf && /opacity/.test(kf[1])) { problems.push('css/game.css: @keyframes ' + name + ' animates opacity on .disc'); }
+  }
+}
+
 warnings.forEach((w) => console.log('WARN ' + w));
 if (problems.length > 0) {
   problems.forEach((p) => console.log('NG   ' + p));

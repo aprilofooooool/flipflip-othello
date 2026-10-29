@@ -141,7 +141,7 @@
 .disc.side-b { --rot: 180deg; }
 .disc.flipping { z-index: 1; }
 .disc.instant { transition: none; }
-.disc.placed { animation: disc-place var(--t-place) ease-out both; }
+.disc.placed { animation: disc-place var(--t-place) ease-out backwards; }
 .face {
   position: absolute;
   inset: 0;
@@ -239,8 +239,8 @@
 @keyframes glow-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 @keyframes sparkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 @keyframes disc-place {
-  from { transform: rotateY(var(--rot)) scale(0.3); opacity: 0; }
-  to { transform: rotateY(var(--rot)) scale(1); opacity: 1; }
+  from { transform: rotateY(var(--rot)) scale(0.3); }
+  to { transform: rotateY(var(--rot)) scale(1); }
 }
 
 /* Landscape and desktop: left = 1P, center = board, right = 2P, buttons under each panel (3 + 3) */
