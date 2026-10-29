@@ -78,8 +78,8 @@
     var per = Math.ceil(total / bursts);
     var made = 0;
     for (var b = 0; b < bursts && made < total; b += 1) {
-      var bx = r.left + r.width * BURST_SPOTS[b][0];
-      var by = r.top + r.height * BURST_SPOTS[b][1];
+      var bx = r.left + r.width * BURST_SPOTS[b % BURST_SPOTS.length][0];
+      var by = r.top + r.height * BURST_SPOTS[b % BURST_SPOTS.length][1];
       var delay = b * 300;
       var flash = el('div', 'fx-burst');
       flash.style.setProperty('--x', bx + 'px');

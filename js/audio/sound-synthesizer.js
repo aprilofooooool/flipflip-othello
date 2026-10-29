@@ -78,7 +78,7 @@
     setEnabled: function (on) { enabled = !!on; },
     isEnabled: function () { return enabled; },
     play: function (name, opts) {
-      if (!enabled || !ctx || !sounds[name]) { return; }
+      if (!enabled || !ctx || ctx.state !== 'running' || !sounds[name]) { return; }
       try { sounds[name](opts || {}); } catch (e) { /* never throw */ }
     }
   };

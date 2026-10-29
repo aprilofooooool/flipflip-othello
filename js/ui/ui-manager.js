@@ -198,7 +198,8 @@
     ['じぶんの いしで あいての いしを はさむと、ひっくりかえせるよ。',
       'おけるところを タップして いしを おこう。',
       'おけるところが なければ パスだよ。',
-      'どちらも おけなくなったら おしまい。いしが おおい ほうが かち！'
+      'どちらも おけなくなったら おしまい。いしが おおい ほうが かち！',
+      'iPhone の マナーモードでは おとが でないことがあるよ'
     ].forEach(function (t) { ul.appendChild(el('li', null, t)); });
     openModal('あそびかた', [ul]);
   }
@@ -295,12 +296,7 @@
     els.sound = el('button', 'btn btn-sub');
     els.sound.type = 'button';
     els.sound.setAttribute('aria-label', 'おとのオンオフ');
-    els.sound.addEventListener('click', function () {
-      state.sound = !state.sound;
-      saveState();
-      render();
-      if (callbacks.onSoundToggle) { callbacks.onSoundToggle(state.sound); }
-    });
+    els.sound.addEventListener('click', toggleSound);
     subRow.appendChild(how);
     subRow.appendChild(els.sound);
     root.appendChild(subRow);
@@ -466,6 +462,7 @@
     closeResult();
     if (G) { G.ctrl.stop(); unbindGame(); }
     showScreen('top');
+    render(); // 'つづきから' follows the save that this game just wrote or cleared
     if (!fromPopstate && pushed) {
       ignorePop = true;
       history.back();
@@ -526,7 +523,7 @@
     if (emotion === 'normal') { return; }
     panel.holdTimer = setTimeout(function () {
       panel.holdTimer = null;
-      setAvatar(panel, 'normal');
+      setAvatar(panel, panel.thinking ? 'thinking' : 'normal');
     }, Otc.Const.EFFECT_MS + Otc.Const.EMOTION_HOLD_MS);
   }
 
@@ -638,6 +635,7 @@
     ['p1', 'p2'].forEach(function (p) {
       Otc.Effects.clearBubbles(G.panels[p].root);
       Otc.Effects.thinking(G.panels[p].root, false);
+      G.panels[p].thinking = false;
       clearHold(G.panels[p]);
       setAvatar(G.panels[p], 'normal');
     });
@@ -731,6 +729,7 @@
   function onState(view) {
     if (!G) { return; }
     G.settings = G.ctrl.getSettings() || G.settings;
+    G.assistOn = !!(G.settings && G.settings.assist); // the controller owns the setting (start / restore / reload)
     if (!G.chars || G.key !== buildKey(view)) { buildGameDom(view); }
     var moved = G.moved;
     G.moved = null;
@@ -757,7 +756,12 @@
     G.offs.push(bus.on('emotion', function (e) { if (G && G.panels) { showEmotion(G.panels[e.player], e.emotion); } }));
     G.offs.push(bus.on('line', function (e) { if (G && G.panels) { Otc.Effects.bubble(G.panels[e.player].root, e.text); } }));
     G.offs.push(bus.on('thinking', function (e) {
-      if (G && G.panels) { Otc.Effects.thinking(G.panels[e.player].root, e.on); }
+      if (!G || !G.panels) { return; }
+      var panel = G.panels[e.player];
+      Otc.Effects.thinking(panel.root, e.on);
+      panel.thinking = !!e.on;
+      // An emotion on show keeps the avatar; its hold timer falls back to thinking / normal.
+      if (!panel.holdTimer) { setAvatar(panel, e.on ? 'thinking' : 'normal'); }
     }));
     G.offs.push(bus.on('assist', function (e) {
       if (!G || !G.cells) { return; }
@@ -795,6 +799,7 @@
     readSettings: readSettings,
     isSoundOn: function () { return state.sound; },
     bindGame: bindGame,
+    leave: function () { leaveGame(false); },
     panelEl: function (player) { return G && G.panels && G.panels[player] ? G.panels[player].root : null; },
     confirm: confirmDialog,
     showResult: showResult,
