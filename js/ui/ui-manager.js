@@ -793,6 +793,7 @@
     readSettings: readSettings,
     isSoundOn: function () { return state.sound; },
     bindGame: bindGame,
+    panelEl: function (player) { return G && G.panels && G.panels[player] ? G.panels[player].root : null; },
     confirm: confirmDialog,
     showResult: showResult,
     showHelp: showHelp
