@@ -22,7 +22,6 @@
     var storage = d.storage || Otc.Storage;
 
     var settings = null;
-    var ruleSet = null;
     var colors = { p1: BLACK, p2: WHITE };
     var history = [];
     var cursor = -1;
@@ -165,6 +164,7 @@
       assistOn = !!on;
       if (!settings) { return; }
       settings.assist = assistOn;
+      save();
       if (assistOn) { refreshAssist(); return; }
       cancelAssist();
       bus.emit('assist', { index: null });
@@ -311,7 +311,7 @@
         // Record the pending pass before emitting so a synchronous listener can skipPass/undo safely.
         var p = { replay: !!replay, timer: null };
         pass = p;
-        bus.emit('pass', { player: turnPlayer() });
+        bus.emit('pass', { player: turnPlayer(), replay: p.replay });
         if (pass === p) { p.timer = scheduler.setTimeout(applyPass, Otc.Const.PASS_DISPLAY_MS); }
         return;
       }
@@ -353,7 +353,7 @@
       stop();
       clearSave(storage);
       settings = s;
-      ruleSet = Otc.RuleSets.get(s.ruleSetId || 'standard');
+      var ruleSet = Otc.RuleSets.get(s.ruleSetId || 'standard');
       var level = s.handicapLevel || 0;
       var blackSide;
       if (level > 0) { blackSide = s.handicapReceiver; }
@@ -377,7 +377,6 @@
       if (!restored) { clearSave(storage); return false; }
       stop();
       settings = data.settings;
-      ruleSet = Otc.RuleSets.get(restored[0].ruleSetId);
       colors = { p1: data.colors.p1, p2: data.colors.p2 };
       history = restored;
       cursor = data.cursor;

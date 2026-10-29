@@ -203,7 +203,7 @@
       var v = t.ctrl.getView();
       var passer = v.turnPlayer;
       expect(v.legal.length).toBe(0);
-      expect(events(t.log, 'pass')).toEqual([{ player: passer }]);
+      expect(events(t.log, 'pass')).toEqual([{ player: passer, replay: false }]);
       expect(t.ctrl.play(0)).toBe(false);
       var panicsBefore = events(t.log, 'emotion').filter(function (e) { return e.player === passer && e.emotion === 'panic'; }).length;
       var passLinesBefore = events(t.log, 'line').filter(function (l) { return l.situation === 'pass'; }).length;
@@ -218,6 +218,17 @@
       var passLines = events(t.log, 'line').filter(function (l) { return l.situation === 'pass'; });
       expect(passLines.length).toBe(passLinesBefore + 1);
       expect(passLines[passLines.length - 1].player).toBe(passer);
+    });
+    it('pass shown again by restore carries replay: true', function () {
+      var storage = createMemStorage();
+      var t = makeCtrl({ storage: storage });
+      t.ctrl.start(soloSettings({ mode: 'duo', p2: 'kuchipatchi' }));
+      playFirstLegal(t, 18);
+      var passer = t.ctrl.getView().turnPlayer;
+      expect(events(t.log, 'pass')).toEqual([{ player: passer, replay: false }]);
+      var t2 = makeCtrl({ storage: storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      expect(events(t2.log, 'pass')).toEqual([{ player: passer, replay: true }]);
     });
     it('skipPass changes the turn immediately and the timer does not fire again', function () {
       var t = toPass();
@@ -648,6 +659,15 @@
       expect(events(t2.log, 'line').length).toBe(0);
       expect(t2.ctrl.undo()).toBe(true);
       expect(t2.ctrl.getView().state.moveNo).toBe(2);
+    });
+    it('setAssist は save に反映され、restore で assist が戻る', function () {
+      var t = setupSolo();
+      soloPlayFirstLegal(t, 2);
+      t.ctrl.setAssist(true);
+      expect(JSON.parse(t.storage.data[C.SAVE_KEY]).settings.assist).toBe(true);
+      var t2 = makeCtrl({ storage: t.storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      expect(t2.ctrl.getSettings().assist).toBe(true);
     });
     it('終局で save が消える、start でも消える', function () {
       var storage = createMemStorage();
