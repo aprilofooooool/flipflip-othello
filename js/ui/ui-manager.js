@@ -477,6 +477,7 @@
     if (!G) { return; }
     closeResult();
     G.ctrl.start(G.settings);
+    afterHistoryMove();
     G.ctrl.notifyActivity();
   }
 
@@ -592,7 +593,12 @@
         confirmDialog('トップへ もどる？').then(function (ok) { if (ok) { leaveGame(false); } });
       })
     };
-    ['undo', 'redo', 'assist', 'sound', 'reset', 'top'].forEach(function (k) { ctl.appendChild(G.btn[k]); });
+    // Two groups: portrait shows them as one row of 6, landscape puts one group under each panel.
+    [['c1', ['undo', 'redo', 'assist']], ['c2', ['sound', 'reset', 'top']]].forEach(function (g) {
+      var group = el('div', 'ctl-group ' + g[0]);
+      g[1].forEach(function (k) { group.appendChild(G.btn[k]); });
+      ctl.appendChild(group);
+    });
 
     var game = el('div', 'game');
     game.appendChild(G.panels.p2.root);

@@ -47,7 +47,7 @@
   position: absolute;
   inset: -6px;
   border-radius: calc(var(--radius-m) + 6px);
-  box-shadow: 0 0 14px 4px var(--glow);
+  box-shadow: var(--glow-shadow);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t-ui) ease;
@@ -212,6 +212,7 @@
 
 /* Controls */
 .controls { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.ctl-group { display: contents; }
 .ctl {
   display: flex;
   flex-direction: column;
@@ -242,24 +243,28 @@
   to { transform: rotateY(var(--rot)) scale(1); opacity: 1; }
 }
 
-/* Landscape and desktop: left = 1P, center = board, right = 2P, buttons under the board */
+/* Landscape and desktop: left = 1P, center = board, right = 2P, buttons under each panel (3 + 3) */
 @media (orientation: landscape) {
   .game {
     --controls-h: 56px;
     --avatar-size: clamp(56px, 22vmin, 160px);
     --board-size: min(
-      calc(100dvh - var(--controls-h) - 3 * var(--gap) - env(safe-area-inset-top) - env(safe-area-inset-bottom)),
+      calc(100dvh - 2 * var(--gap) - env(safe-area-inset-top) - env(safe-area-inset-bottom)),
       calc(100vw - 2 * var(--panel-w-min) - 4 * var(--gap) - env(safe-area-inset-left) - env(safe-area-inset-right)),
       var(--board-max)
     );
     grid-template-columns: minmax(0, var(--panel-w-max)) var(--board-size) minmax(0, var(--panel-w-max));
-    grid-template-rows: var(--board-size) var(--controls-h);
-    grid-template-areas: "p1 board p2" "p1 controls p2";
+    grid-template-rows: calc(var(--board-size) - var(--controls-h) - var(--gap)) var(--controls-h);
+    grid-template-areas: "p1 board p2" "c1 board c2";
     align-content: center;
     padding-inline: var(--gap);
   }
-  .game .side-p1, .game .side-p2 { align-self: center; }
-  .char-panel { flex-direction: column; justify-content: flex-start; gap: 4px; padding: 8px; text-align: center; }
+  .game .side-p1, .game .side-p2 { align-self: stretch; }
+  .controls { display: contents; }
+  .ctl-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .ctl-group.c1 { grid-area: c1; }
+  .ctl-group.c2 { grid-area: c2; }
+  .char-panel { flex-direction: column; justify-content: center; gap: 4px; padding: 8px; text-align: center; }
   .panel-info { align-items: center; }
   .bubble-slot { flex: none; align-self: stretch; min-height: 2.5em; }
   .help-btn { top: 2px; right: 2px; }

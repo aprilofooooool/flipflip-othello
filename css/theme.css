@@ -36,6 +36,7 @@
   --assist-ring: #ffc83a;
   --last-mark: #ff5c9a;
   --glow: rgba(255, 200, 58, 0.75);
+  --glow-shadow: 0 0 14px 4px var(--glow);
 
   /* Shape */
   --radius-s: 12px;

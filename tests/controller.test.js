@@ -86,6 +86,10 @@
       // rng() = 0.5 is not below 0.5, so p2 gets BLACK.
       expect(setup({ first: 'random' }).ctrl.getView().colors.p2).toBe(E.BLACK);
     });
+    it('getSettings returns the settings passed to start', function () {
+      var t = setup({ first: 'p2' });
+      expect(t.ctrl.getSettings().first).toBe('p2');
+    });
     it('emits gameStart lines for both players and no turnStart', function () {
       var lines = events(setup().log, 'line');
       expect(lines.map(function (l) { return l.player + ':' + l.situation; })).toEqual(['p1:gameStart', 'p2:gameStart']);
