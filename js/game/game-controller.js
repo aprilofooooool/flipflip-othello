@@ -248,7 +248,7 @@
         });
       }
       clearSave(storage);
-      bus.emit('gameover', { result: res, winner: winner });
+      bus.emit('gameover', { result: res, winner: winner, replay: !!replay });
     }
 
     // §8.3: lines at a human turn start, only when the latest move gave no emotion line.

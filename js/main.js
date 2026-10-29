@@ -5,7 +5,6 @@
   function start() {
     var bus = Otc.bus;
     var ctrl = Otc.GameController.create({});
-    var resultPlayed = false; // per-game guard: replayed 'gameover' (redo) must not replay the result sound
 
     // iOS can re-suspend the AudioContext, so unlock on every pointerdown (unlock is idempotent).
     document.addEventListener('pointerdown', function () { Otc.Sound.unlock(); }, true);
@@ -15,7 +14,6 @@
       if (b && !b.disabled && !b.classList.contains('cell')) { Otc.Sound.play('button'); }
     }, true);
 
-    bus.on('state', function (view) { if (!view.gameOver) { resultPlayed = false; } });
     bus.on('moved', function (e) {
       Otc.Sound.play('place');
       Otc.Sound.play('flip', { count: e.flipped.length });
@@ -26,8 +24,7 @@
       Otc.Sound.play('reaction', { emotion: e.emotion });
     });
     bus.on('gameover', function (e) {
-      if (resultPlayed) { return; }
-      resultPlayed = true;
+      if (e.replay) { return; } // undo / redo / restore re-emit gameover silently
       var s = ctrl.getSettings();
       var name;
       if (e.winner === null) { name = 'draw'; }
@@ -38,12 +35,10 @@
 
     Otc.UI.init({
       onStart: function (settings) {
-        resultPlayed = false;
         Otc.UI.bindGame(ctrl);
         ctrl.start(settings);
       },
       onResume: function () {
-        resultPlayed = false;
         Otc.UI.bindGame(ctrl);
         ctrl.restore();
         ctrl.notifyActivity();

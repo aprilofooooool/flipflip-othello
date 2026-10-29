@@ -283,6 +283,21 @@
   });
 
   describe('GameController game over', function () {
+    it('gameover.replay is false when live, true after undo then redo to the end', function () {
+      var t = setup();
+      var guard = 0;
+      while (!t.ctrl.getView().gameOver && guard++ < 200) {
+        var v = t.ctrl.getView();
+        if (v.legal.length) { t.ctrl.play(v.legal[0]); } else { t.ctrl.skipPass(); }
+      }
+      expect(events(t.log, 'gameover')[0].replay).toBe(false);
+      expect(t.ctrl.undo()).toBe(true);
+      guard = 0;
+      while (!t.ctrl.getView().gameOver && guard++ < 5) { t.ctrl.redo(); }
+      var over = events(t.log, 'gameover');
+      expect(over.length).toBe(2);
+      expect(over[1].replay).toBe(true);
+    });
     it('emits gameover with winner and disc counts', function () {
       var t = setup();
       var guard = 0;

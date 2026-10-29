@@ -601,6 +601,8 @@
       assist: makeControl('✨', 'アシスト', 'アシストの オンオフ', function () {
         G.assistOn = !G.assistOn;
         G.ctrl.setAssist(G.assistOn);
+        state.assist = G.assistOn;
+        saveState();
         renderControls();
       }),
       sound: makeControl('♪', 'おと', 'おとの オンオフ', function () { toggleSound(); renderControls(); }),
