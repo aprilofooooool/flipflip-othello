@@ -85,4 +85,29 @@
   --disc-ring: 3px;
   --flip-perspective: 500px;
   --pass-banner-w: 80%;
+
+  /* Emotion effects */
+  --fx-gold: #ffc83a;
+  --fx-gold-light: #fff2b0;
+  --fx-anger: #ff3b3b;
+  --fx-flash: rgba(255, 40, 40, 0.45);
+  --fx-flash-reduced: rgba(255, 40, 40, 0.15);
+  --fx-dim: rgba(30, 30, 70, 0.5);
+  --fx-rain: #8fc8ff;
+  --fx-sweat: #7fd0ff;
+  --fx-bubble-bg: #ffffff;
+  --fx-z: 50;
+  --fx-fade: 300ms;
+  --fx-flash-dur: 900ms;
+  --fx-flash-dur-reduced: 1800ms;
+  --fx-shake-dur: 1200ms;
+  --fx-shake-amp: 6px;
+  --fx-burst: 1400ms;
+  --fx-rain-dur: 900ms;
+  --fx-sweat-dur: 1400ms;
+  --fx-bounce-dur: 700ms;
+  --fx-dots-dur: 1.2s;
+  --fx-particle-size: 10px;
+  --fx-anger-size: 44px;
+  --fx-bubble-fade: 250ms;
 }

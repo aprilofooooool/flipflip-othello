@@ -484,6 +484,8 @@
 
   function unbindGame() {
     if (!G) { return; }
+    Otc.Effects.stopAll();
+    if (G.panels) { ['p1', 'p2'].forEach(function (p) { clearHold(G.panels[p]); Otc.Effects.clearBubbles(G.panels[p].root); }); }
     G.offs.forEach(function (off) { off(); });
     G.root.innerHTML = '';
     G = null;
@@ -511,6 +513,21 @@
     p.appendChild(info);
     p.appendChild(bubble);
     return { root: p, avatar: avatar, count: count, bubble: bubble, emotion: null, ch: ch };
+  }
+
+  function clearHold(panel) {
+    if (panel.holdTimer) { clearTimeout(panel.holdTimer); panel.holdTimer = null; }
+  }
+
+  // Shows an emotion image, then returns to normal after the effect and hold times. A new emotion re-arms the timer.
+  function showEmotion(panel, emotion) {
+    clearHold(panel);
+    setAvatar(panel, emotion);
+    if (emotion === 'normal') { return; }
+    panel.holdTimer = setTimeout(function () {
+      panel.holdTimer = null;
+      setAvatar(panel, 'normal');
+    }, Otc.Const.EFFECT_MS + Otc.Const.EMOTION_HOLD_MS);
   }
 
   function setAvatar(panel, emotion) {
@@ -615,8 +632,11 @@
 
   // After Undo / Redo the controller sends no emotion events, so both avatars go back to normal.
   function afterHistoryMove() {
+    Otc.Effects.stopAll();
     ['p1', 'p2'].forEach(function (p) {
-      G.panels[p].root.classList.remove('thinking');
+      Otc.Effects.clearBubbles(G.panels[p].root);
+      Otc.Effects.thinking(G.panels[p].root, false);
+      clearHold(G.panels[p]);
       setAvatar(G.panels[p], 'normal');
     });
   }
@@ -732,9 +752,10 @@
     G.assistOn = !!(G.settings && G.settings.assist);
     G.offs.push(bus.on('state', onState));
     G.offs.push(bus.on('moved', function (e) { if (G) { G.moved = e; } }));
-    G.offs.push(bus.on('emotion', function (e) { if (G && G.panels) { setAvatar(G.panels[e.player], e.emotion); } }));
+    G.offs.push(bus.on('emotion', function (e) { if (G && G.panels) { showEmotion(G.panels[e.player], e.emotion); } }));
+    G.offs.push(bus.on('line', function (e) { if (G && G.panels) { Otc.Effects.bubble(G.panels[e.player].root, e.text); } }));
     G.offs.push(bus.on('thinking', function (e) {
-      if (G && G.panels) { G.panels[e.player].root.classList.toggle('thinking', e.on); }
+      if (G && G.panels) { Otc.Effects.thinking(G.panels[e.player].root, e.on); }
     }));
     G.offs.push(bus.on('assist', function (e) {
       if (!G || !G.cells) { return; }

@@ -51,6 +51,12 @@
     // Starts at the JOY_DELTA value. At most once per player every ADVANTAGE_COOLDOWN_MOVES moves.
     ADVANTAGE_EVAL: 197,
     ADVANTAGE_COOLDOWN_MOVES: 6,
+    // Emotion effects: effect length, how long the emotion image stays after it, speech bubble length (ms),
+    // and the particle cap for the whole fx layer.
+    EFFECT_MS: 2000,
+    EMOTION_HOLD_MS: 2000,
+    BUBBLE_MS: 2500,
+    MAX_PARTICLES: 40,
     AI_LEVELS: {
       easy: { depth: 1, timeMs: 300, endgameEmpties: 0, randomRate: 0.3 },
       normal: { depth: 3, timeMs: 1000, endgameEmpties: 8, randomRate: 0 },
