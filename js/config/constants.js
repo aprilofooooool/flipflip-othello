@@ -37,6 +37,10 @@
     // Game-in-progress save (localStorage key via Otc.Storage) and its format version.
     SAVE_KEY: 'otc.save.v1',
     SAVE_VERSION: 1,
+    // Top screen settings (localStorage key via Otc.Storage).
+    SETTINGS_KEY: 'otc.settings.v1',
+    // Path to a logo image shown instead of the CSS logo. null = CSS logo.
+    LOGO_IMAGE: null,
     // Chance of a turnStart line at a human turn start when the move gave no emotion line.
     TURN_LINE_RATE: 0.3,
     // winning / losing line: AI.scoreFor(state, color, 1) above +ADVANTAGE_EVAL / below -ADVANTAGE_EVAL.

@@ -1,0 +1,58 @@
+/* Theme variables. Every other CSS file uses only these (change the look here). */
+:root {
+  /* Pastel base */
+  --bg: #fff7e8;
+  --bg-dot: #ffe3b8;
+  --surface: #ffffff;
+  --surface-sub: #fff0f6;
+  --ink: #3a2f5a;
+  --ink-sub: #5d5280;
+  --outline: #3a2f5a;
+
+  /* Vivid accents */
+  --accent-pink: #ff5c9a;
+  --accent-blue: #3aa0ff;
+  --accent-yellow: #ffc83a;
+  --accent-green: #36c486;
+  --accent-purple: #9a6bff;
+  --on-accent: #3a2f5a;
+  --on-accent-strong: #ffffff;
+  --accent-pink-strong: #c2185b;
+
+  /* Selection / state */
+  --selected: #c2185b;
+  --selected-bg: #ffe0ec;
+  --disabled-bg: #e4e0ee;
+  --disabled-ink: #6c6580;
+
+  /* Board (used by the game screen) */
+  --board: #8fe3c0;
+  --board-line: #ffffff;
+  --disc-black: #3a2f5a;
+  --disc-white: #ffffff;
+
+  /* Shape */
+  --radius-s: 12px;
+  --radius-m: 20px;
+  --radius-l: 28px;
+  --radius-round: 999px;
+  --border-w: 3px;
+
+  /* Shadow */
+  --shadow-s: 0 3px 0 var(--outline);
+  --shadow-m: 0 5px 0 var(--outline);
+  --shadow-soft: 0 8px 20px rgba(58, 47, 90, 0.18);
+
+  /* Animation times */
+  --t-press: 90ms;
+  --t-ui: 180ms;
+  --t-pop: 600ms;
+  --t-flip: 400ms;
+
+  /* Font */
+  --font: "Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Yu Gothic UI", system-ui, sans-serif;
+
+  /* Sizes */
+  --tap-min: 48px;
+  --content-max: 560px;
+}
