@@ -476,8 +476,9 @@
   function restartGame() {
     if (!G) { return; }
     closeResult();
-    G.ctrl.start(G.settings);
+    // Reset first: start() may emit thinking for a CPU first move synchronously.
     afterHistoryMove();
+    G.ctrl.start(G.settings);
     G.ctrl.notifyActivity();
   }
 
