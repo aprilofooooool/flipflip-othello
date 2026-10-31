@@ -59,7 +59,7 @@
   width: var(--avatar-size);
   height: var(--avatar-size);
   border: var(--border-w) solid var(--outline);
-  border-radius: 50%;
+  border-radius: var(--radius-s);
   overflow: hidden;
 }
 .avatar .char-img { display: block; width: 100%; height: 100%; object-fit: cover; }
