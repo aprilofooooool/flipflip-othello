@@ -53,8 +53,8 @@
     ADVANTAGE_COOLDOWN_MOVES: 6,
     // Emotion effects: effect length, how long the emotion image stays after it, speech bubble length (ms),
     // and the particle cap for the whole fx layer.
-    EFFECT_MS: 2000,
-    EMOTION_HOLD_MS: 2000,
+    EFFECT_MS: 2500,
+    EMOTION_HOLD_MS: 3000,
     BUBBLE_MS: 2500,
     MAX_PARTICLES: 40,
     // Effect sizes: joy bursts x particles per burst, rain drops, sweat drops (each capped by MAX_PARTICLES in total).
