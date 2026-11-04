@@ -234,7 +234,7 @@
       react({
         mover: mover, kind: 'move', flippedCount: res.flipped.length, tookCorner: tookCorner,
         deltaE: Otc.Reaction.deltaFor(state, res.state, mover), replay: false,
-        misere: Otc.RuleSets.get(state.ruleSetId).misere
+        misere: Otc.RuleSets.get(state.ruleSetId).misere, ruleSetId: state.ruleSetId
       }, tookCorner);
       emitState();
       save();
@@ -263,7 +263,7 @@
       ['p1', 'p2'].forEach(function (p) {
         if (state.moveNo - lastAdvantage[p] < Otc.Const.ADVANTAGE_COOLDOWN_MOVES) { return; }
         var score = Otc.AI.scoreFor(state, colors[p], 1);
-        var limit = Otc.Const.ADVANTAGE_EVAL;
+        var limit = Otc.Reaction.threshold(state.ruleSetId, 'ADVANTAGE_EVAL');
         var situation = score > limit ? 'winning' : (score < -limit ? 'losing' : null);
         if (!situation) { return; }
         lastAdvantage[p] = state.moveNo;

@@ -74,6 +74,26 @@
     });
   });
 
+  describe('Reaction.threshold', function () {
+    it('threshold は RuleSet の値を優先し、無ければ Const', function () {
+      var anti = Otc.RuleSets.get('anti').thresholds;
+      expect(R.threshold('anti', 'JOY_DELTA')).toBe(anti.JOY_DELTA);
+      expect(R.threshold('anti', 'PANIC_DELTA')).toBe(anti.PANIC_DELTA);
+      expect(R.threshold('anti', 'ADVANTAGE_EVAL')).toBe(anti.ADVANTAGE_EVAL);
+      ['standard', 'mini', undefined].forEach(function (id) {
+        expect(R.threshold(id, 'JOY_DELTA')).toBe(C.JOY_DELTA);
+        expect(R.threshold(id, 'PANIC_DELTA')).toBe(C.PANIC_DELTA);
+        expect(R.threshold(id, 'ADVANTAGE_EVAL')).toBe(C.ADVANTAGE_EVAL);
+      });
+    });
+    it('judge は ruleSetId のしきい値で判定する', function () {
+      var d = C.JOY_DELTA + 1; // above the standard JOY_DELTA, below the anti one
+      expect(R.threshold('anti', 'JOY_DELTA') > d).toBeTruthy();
+      expect(mv({ deltaE: d, ruleSetId: 'standard' })[B]).toBe('joy');
+      expect(mv({ deltaE: d, misere: true, ruleSetId: 'anti' })[B]).toBe(null);
+    });
+  });
+
   describe('Reaction helpers', function () {
     it('isCorner', function () {
       expect(R.isCorner(0, 8)).toBeTruthy();

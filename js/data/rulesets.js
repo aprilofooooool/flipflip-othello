@@ -22,7 +22,8 @@
   }
 
   // misere: the side with fewer discs wins (anti othello).
-  function make(id, label, size, misere) {
+  // thresholds: optional reaction thresholds overriding Otc.Const (see Otc.Reaction.threshold).
+  function make(id, label, size, misere, thresholds) {
     var rs = {
       id: id,
       label: label,
@@ -32,6 +33,7 @@
       handicapCorners: handicapCorners,
       firstTurn: function (handicapLevel) { return handicapLevel > 0 ? WHITE : BLACK; }
     };
+    if (thresholds) { rs.thresholds = thresholds; }
     if (misere) {
       // Empty squares are not added to anyone. The Engine is read at call time (it loads after this file).
       rs.result = function (state) {
@@ -43,11 +45,13 @@
     return rs;
   }
 
+  // Rules whose measured thresholds are outside +-30% of the standard ones carry their own
+  // (.claude/docs/reports/2026-11-04-variant-thresholds.md). ADVANTAGE_EVAL starts at JOY_DELTA.
   var list = [
     make('standard', 'ふつうのルール', 8, false),
-    make('anti', '8x8・アンチ', 8, true),
+    make('anti', '8x8・アンチ', 8, true, { JOY_DELTA: 236, PANIC_DELTA: 475, ADVANTAGE_EVAL: 236 }),
     make('mini', '6x6・ふつう', 6, false),
-    make('mini-anti', '6x6・アンチ', 6, true)
+    make('mini-anti', '6x6・アンチ', 6, true, { JOY_DELTA: 320, PANIC_DELTA: 646, ADVANTAGE_EVAL: 320 })
   ];
 
   function find(id) {

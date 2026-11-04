@@ -1,7 +1,7 @@
 'use strict';
 // Measures the distribution of the evaluation change (delta E) over self-play games
 // ("normal" vs "easy", colors swapped half-and-half) to choose JOY_DELTA / PANIC_DELTA.
-// Usage: node tests/tools/measure-delta.js [games=200] [seed=20261029]
+// Usage: node tests/tools/measure-delta.js [games=200] [seed=20261029] [ruleSetId=standard]
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -32,6 +32,10 @@ const C = Otc.Const;
 
 const GAMES = parseInt(process.argv[2] || '200', 10);
 const SEED = parseInt(process.argv[3] || '20261029', 10);
+const RULE = process.argv[4] || 'standard';
+const RS = Otc.RuleSets.get(RULE);
+// Phase bounds scaled to the board area, same formula as the AI (8x8 keeps 41/15/0).
+const PHASES = C.EVAL_PHASES.map((p) => ({ name: p.name, minEmpties: Math.round(p.minEmpties * RS.size * RS.size / 64) }));
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -52,8 +56,8 @@ const DECIDED = C.WIN_SCORE / 2;
 
 function phaseOf(state) {
   const empties = E.countDiscs(state).empty;
-  for (const p of C.EVAL_PHASES) { if (empties >= p.minEmpties) { return p.name; } }
-  return C.EVAL_PHASES[C.EVAL_PHASES.length - 1].name;
+  for (const p of PHASES) { if (empties >= p.minEmpties) { return p.name; } }
+  return PHASES[PHASES.length - 1].name;
 }
 
 const records = []; // { phase, delta }
@@ -62,7 +66,7 @@ let excluded = 0;
 const t0 = Date.now();
 
 for (let g = 0; g < GAMES; g++) {
-  let s = E.createInitialState(Otc.RuleSets.get('standard'));
+  let s = E.createInitialState(RS);
   const blackLevel = g % 2 === 0 ? 'normal' : 'easy';
   while (!E.isGameOver(s)) {
     if (E.mustPass(s)) { s = E.applyPass(s); continue; }
@@ -88,14 +92,14 @@ const neg = records.filter((r) => r.delta < 0).map((r) => -r.delta).sort((a, b) 
 const joy = percentile(pos, 0.9);
 const panic = percentile(neg, 0.9);
 
-console.log('games=' + GAMES + ' seed=' + SEED + ' elapsedSec=' + Math.round((Date.now() - t0) / 1000));
+console.log('rule=' + RULE + ' games=' + GAMES + ' seed=' + SEED + ' elapsedSec=' + Math.round((Date.now() - t0) / 1000));
 console.log('moves total=' + total + ' excluded(decided)=' + excluded + ' used=' + records.length);
 console.log('positive deltas=' + pos.length + ' negative deltas=' + neg.length);
 console.log('JOY_DELTA (p90 of positive)=' + joy + ' PANIC_DELTA (p90 of |negative|)=' + panic);
-C.EVAL_PHASES.forEach((p) => {
+PHASES.forEach((p) => {
   const rs = records.filter((r) => r.phase === p.name);
   const j = rs.filter((r) => r.delta >= joy).length;
   const n = rs.filter((r) => r.delta <= -panic).length;
   const pct = (x) => (rs.length ? (100 * x / rs.length).toFixed(1) : '0.0') + '%';
-  console.log('phase ' + p.name + ': moves=' + rs.length + ' joy=' + pct(j) + ' panic=' + pct(n) + ' either=' + pct(j + n));
+  console.log('phase ' + p.name + ' (empties>=' + p.minEmpties + '): moves=' + rs.length + ' joy=' + pct(j) + ' panic=' + pct(n) + ' either=' + pct(j + n));
 });

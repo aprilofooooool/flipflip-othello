@@ -26,7 +26,16 @@
     return null;
   }
 
+  // Reaction threshold of a rule set: its `thresholds[key]` when set, otherwise Otc.Const[key].
+  function threshold(ruleSetId, key) {
+    var rs = Otc.RuleSets.find(ruleSetId);
+    var t = rs && rs.thresholds;
+    return t && typeof t[key] === 'number' ? t[key] : C[key];
+  }
+
   function judge(input) {
+    var joyDelta = threshold(input.ruleSetId, 'JOY_DELTA');
+    var panicDelta = threshold(input.ruleSetId, 'PANIC_DELTA');
     var out = {};
     out[BLACK] = null;
     out[WHITE] = null;
@@ -43,13 +52,13 @@
         if (input.misere) { mine.push('panic'); theirs.push('joy'); }
         else { mine.push('joy'); theirs.push('anger'); }
       }
-      if (input.deltaE >= C.JOY_DELTA) { mine.push('joy'); }
-      if (input.deltaE <= -C.PANIC_DELTA) { mine.push('panic'); }
+      if (input.deltaE >= joyDelta) { mine.push('joy'); }
+      if (input.deltaE <= -panicDelta) { mine.push('panic'); }
       if (input.flippedCount >= C.SADNESS_FLIPS) {
         // Anti: flipping many discs hurts the mover, not the opponent.
         if (input.misere) { mine.push('sadness'); } else { theirs.push('sadness'); }
       }
-      if (-input.deltaE <= -C.PANIC_DELTA) { theirs.push('panic'); }
+      if (-input.deltaE <= -panicDelta) { theirs.push('panic'); }
     }
     out[me] = pick(mine);
     out[opp] = pick(theirs);
@@ -74,5 +83,5 @@
     return best;
   }
 
-  Otc.Reaction = { PRIORITY: PRIORITY, judge: judge, deltaFor: deltaFor, isCorner: isCorner, pickEffect: pickEffect };
+  Otc.Reaction = { PRIORITY: PRIORITY, judge: judge, threshold: threshold, deltaFor: deltaFor, isCorner: isCorner, pickEffect: pickEffect };
 })(window.Otc);
