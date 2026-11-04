@@ -53,6 +53,12 @@
       expect(f[B]).toBe(null);
       expect(f[W]).toBe(null);
     });
+    it('アンチ: 角を取って評価が大きく上がっても、本人 null・相手 goodMove', function () {
+      var big = R.threshold('anti', 'JOY_DELTA') + 1;
+      var r = mv({ tookCorner: true, misere: true, deltaE: big, ruleSetId: 'anti' });
+      expect(r[B]).toBe(null);
+      expect(r[W]).toBe('goodMove');
+    });
     it('アンチ: 評価の規則と強制パスは standard と同じ形', function () {
       var anti = Otc.RuleSets.get('anti').thresholds;
       var r = mv({ deltaE: anti.PANIC_DELTA, misere: true, ruleSetId: 'anti' });
@@ -84,6 +90,9 @@
       expect(R.emotionOf('manyFlipped', [], seq(0))).toBe('anger');
       expect(R.emotionOf('manyFlipped', [], seq(0.25))).toBe('sadness');
       expect(R.emotionOf('manyFlipped', [], seq(0.75))).toBe('panic');
+    });
+    it('直近が joy・joy でも cornerLost の選択は変わらない（rng 0 で anger）', function () {
+      expect(R.emotionOf('cornerLost', ['joy', 'joy'], seq(0))).toBe('anger');
     });
     it('直近2回が同じ感情ならそれを外す（1回だけなら外さない）', function () {
       expect(R.emotionOf('cornerLost', ['anger', 'anger'], seq(0))).toBe('sadness');

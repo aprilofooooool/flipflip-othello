@@ -21,7 +21,9 @@
       { name: 'endgame', minEmpties: 0, position: 2, mobility: 15, stable: 100, disc: 10 }
     ],
     // Reaction judgement: search depth for the evaluation change, flipped-disc count for sadness,
-    // and the evaluation-change thresholds for joy / panic (measured, see .claude/docs/reports/2026-10-29-delta-threshold.md).
+    // and the evaluation-change thresholds for joy / panic. JOY_DELTA comes from the 2026-11-05 spec
+    // (.claude/docs/specs/2026-11-05-emotion-tuning-design.md section 4) and report (.claude/docs/reports/2026-11-05-emotion-tuning-measure.md);
+    // PANIC_DELTA comes from .claude/docs/reports/2026-10-29-delta-threshold.md.
     REACTION_SEARCH_DEPTH: 2,
     SADNESS_FLIPS: 5,
     // JOY_DELTA 120: top 10% of the easy seat's moves (design 2026-11-05 section 4).

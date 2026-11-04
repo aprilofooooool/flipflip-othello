@@ -155,7 +155,7 @@
     var rank = function (x) { return PRIORITY.indexOf(x.emotion); };
     var best = null;
     emotions.forEach(function (x) {
-      if (!best || rank(x) < rank(best) || (rank(x) === rank(best) && x.player === mover)) { best = x; }
+      if (!best || rank(x) < rank(best)) { best = x; }
     });
     return best;
   }

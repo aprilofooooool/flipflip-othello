@@ -1089,6 +1089,24 @@
       expect(emo.some(function (e) { return e.player === 'p2' && e.emotion === 'panic'; })).toBe(false);
       expect(after.some(function (e) { return e.type === 'line' && e.payload.player === 'p1'; })).toBe(false);
     });
+    it('同じ席が連続でパスしてパニック2回のあと、返された手の感情は panic を外す（席ごとの履歴はほかの席の手で乱れない）', function () {
+      // Turn order p4, p1, p2, p3, p4, p1, p2. p1 (RED) has no legal move on both of its turns, so it passes twice
+      // with other seats moving in between; then p2 flips c3..f3 (4 discs, not on an edge; p1 keeps h4 so it is not wiped out).
+      var rows = ['bkk.bkk.', '........', 'wrrrr...', '.......r', 'wbb.....', '........', 'kww.....', '........'];
+      var t = makeCtrl({ rng: function () { return 0; }, storage: storeOf(fourSaveData(F.stateFromRows(rows, F.BLUE), { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      expect(t.ctrl.play(3)).toBe(true);
+      t.ctrl.skipPass();
+      expect(t.ctrl.play(35)).toBe(true);
+      expect(t.ctrl.play(51)).toBe(true);
+      expect(t.ctrl.play(7)).toBe(true);
+      t.ctrl.skipPass();
+      expect(t.ctrl.play(21)).toBe(true);
+      var p1 = events(t.log, 'emotion').filter(function (e) { return e.player === 'p1'; }).map(function (e) { return e.emotion; });
+      // panic, panic (the two passes), then manyFlipped with panic excluded: anger 25 / sadness 50, rng 0 gives anger.
+      // The game then ends (small board), which adds a last game-over emotion; only the first three are reactions.
+      expect(p1.slice(0, 3)).toEqual(['panic', 'panic', 'anger']);
+    });
     it('終局: gameover の winners / ranks、1位 joy＋win、他は sadness＋lose', function () {
       var rows = ['.wrrrrrr', 'rrrrrrrr', 'rrrrwwww', 'wwwwwwww', 'wwwwwwww', 'kkkkkkkk', 'kkkkkkbb', 'bbbbbbbb'];
       var t = makeCtrl({ storage: storeOf(fourSaveData(F.stateFromRows(rows, F.RED), { humans: 4 })) });
