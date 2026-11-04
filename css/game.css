@@ -311,7 +311,9 @@
 .game.four .bubble-think::before { display: none; }
 .game.four .bubble-dots { gap: 3px; }
 .game.four .bubble-dots span { width: 6px; height: 6px; }
-.game.four .controls { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.game.four .controls { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+/* 7 controls must fit a 375px board: 7 x 44px + 6 x 4px gaps; still above the 44px tap minimum. */
+.game.four .ctl { min-width: 44px; min-height: 44px; }
 .game.four .help-btn {
   position: static;
   min-width: var(--tap-min);

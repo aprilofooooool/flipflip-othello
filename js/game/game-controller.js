@@ -179,6 +179,11 @@
 
     function readFourHistory(data) {
       if (data.settings.mode !== 'four') { return null; }
+      if ([1, 2, 3, 4].indexOf(data.settings.humans) < 0) { return null; }
+      var ids = Otc.Characters.map(function (c) { return c.id; });
+      for (var p = 0; p < FOUR_SEATS.length; p++) {
+        if (ids.indexOf(data.settings[FOUR_SEATS[p]]) < 0) { return null; }
+      }
       var used = {};
       for (var k = 0; k < FOUR_SEATS.length; k++) {
         var color = data.colors[FOUR_SEATS[k]];
