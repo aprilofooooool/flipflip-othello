@@ -271,11 +271,4 @@
   .help-btn { top: 2px; right: 2px; }
 }
 
-/* Rule name (non-standard rules only): a small pill on the board's top edge. */
-.rule-tag {
-  position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%);
-  padding: 1px 10px; border-radius: 999px; background: var(--surface);
-  border: 1px solid var(--ink-sub); font-size: 0.75rem; font-weight: 800; color: var(--ink-sub);
-  white-space: nowrap; pointer-events: none; z-index: 2;
-}
 .modal .result-rule { text-align: center; font-size: 1rem; font-weight: 800; color: var(--ink-sub); margin: -8px 0 16px; }

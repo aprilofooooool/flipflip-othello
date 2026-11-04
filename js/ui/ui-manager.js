@@ -433,7 +433,7 @@
     else { title = (winner === 'p1' ? '1P' : '2P') + 'の かち！'; }
     var score = el('p', 'result-score', '1P ' + view.counts.p1 + ' - ' + view.counts.p2 + ' ' + (solo ? 'CPU' : '2P'));
     var body = [el('h2', 'result-title', title), score];
-    var rule = Otc.RuleSets.get(G.settings.ruleSetId);
+    var rule = Otc.RuleSets.find(view.state.ruleSetId);
     if (rule && rule.misere) { body.push(el('p', 'result-rule', 'すくないほうが かち')); }
     resultBack = buildModal(title, body, [
       { text: 'ばんを みる', cls: 'btn-sub', onClick: closeResult },
@@ -563,7 +563,7 @@
   }
 
   function buildKey(view) {
-    return [G.settings.p1, G.settings.p2, view.colors.p1, view.state.size].join('|');
+    return [G.settings.p1, G.settings.p2, view.colors.p1, view.state.size, view.state.ruleSetId].join('|');
   }
 
   function buildGameDom(view) {
@@ -571,9 +571,12 @@
     var size = view.state.size;
     G.chars = { p1: Otc.CharacterManager.get(s.p1), p2: Otc.CharacterManager.get(s.p2) };
     G.blackSide = view.colors.p1 === Otc.Engine.BLACK ? 'p1' : 'p2';
+    // Rule name goes in the 2P panel's tag line (never on the board). Standard shows nothing.
+    var rule = view.state.ruleSetId !== 'standard' ? Otc.RuleSets.find(view.state.ruleSetId) : null;
+    var p2Tag = (s.mode === 'solo' ? 'CPU' : '2P') + (rule ? ' ・ ' + rule.label : '');
     G.panels = {
       p1: makeCharPanel('p1', G.chars.p1, '1P'),
-      p2: makeCharPanel('p2', G.chars.p2, s.mode === 'solo' ? 'CPU' : '2P')
+      p2: makeCharPanel('p2', G.chars.p2, p2Tag)
     };
     var help = el('button', 'btn help-btn', '？');
     help.type = 'button';
@@ -598,8 +601,6 @@
     }
     G.board = board;
     wrap.appendChild(board);
-    var rule = G.settings.ruleSetId !== 'standard' ? Otc.RuleSets.get(G.settings.ruleSetId) : null;
-    if (rule) { wrap.appendChild(el('div', 'rule-tag', rule.label)); }
     G.banner = el('button', 'pass-banner');
     G.banner.type = 'button';
     G.banner.hidden = true;
