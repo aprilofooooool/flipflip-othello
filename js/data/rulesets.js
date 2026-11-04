@@ -54,7 +54,11 @@
     make('mini-anti', '6x6・アンチ', 6, true, { JOY_DELTA: 320, PANIC_DELTA: 646, ADVANTAGE_EVAL: 320 })
   ];
 
+  // 4-player mode: rules live in Otc.FourEngine. Kept out of `list` (the measure scripts iterate it).
+  var four = { id: 'four', label: '4にん', size: 8, misere: false, players: 4 };
+
   function find(id) {
+    if (id === 'four') { return four; }
     for (var i = 0; i < list.length; i++) {
       if (list[i].id === id) { return list[i]; }
     }
