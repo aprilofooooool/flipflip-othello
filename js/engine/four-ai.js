@@ -145,9 +145,11 @@
     return { move: session.best, depth: session.d, timedOut: session.timedOut };
   }
 
-  function resolveLevel(name) {
-    var lv = C.FOUR_AI_LEVELS[name];
-    if (!lv) { throw new Error('Unknown AI level: ' + name); }
+  // Accepts a level name or a level object ({ depth, timeMs, randomRate }).
+  function resolveLevel(levelOrName) {
+    if (typeof levelOrName !== 'string') { return levelOrName; }
+    var lv = C.FOUR_AI_LEVELS[levelOrName];
+    if (!lv) { throw new Error('Unknown AI level: ' + levelOrName); }
     return lv;
   }
 

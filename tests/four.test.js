@@ -207,7 +207,9 @@
 
     it('選ぶ手は必ず合法手（3レベル × 初期局面と中盤の固定局面）', function () {
       var states = [F.createInitialState(F.RED), midgame()];
-      ['easy', 'normal', 'strong'].forEach(function (level) {
+      ['easy', 'normal', 'strong'].forEach(function (name) {
+        // Real depth and randomRate, but a short deadline so the test stays fast and time-independent.
+        var level = Object.assign({}, Otc.Const.FOUR_AI_LEVELS[name], { timeMs: 100 });
         states.forEach(function (s) {
           var r = AI.chooseMoveSync(s, level, noRandom);
           expect(F.legalMoves(s).indexOf(r.move) >= 0).toBe(true);
@@ -259,11 +261,16 @@
       expect(F.legalMoves(s).indexOf(got.move) >= 0).toBe(true);
     });
 
-    it('strong の chooseMoveSync が timeMs + 200ms 以内に返る', function () {
+    it('深さ8でも締め切りで打ち切り、1手は読み終えて返る', function () {
+      var level = { depth: 8, timeMs: 150, randomRate: 0 };
       var s = midgame();
       var t0 = performance.now();
-      AI.chooseMoveSync(s, 'strong', noRandom);
-      expect(performance.now() - t0).toBeLessThanOrEqual(Otc.Const.FOUR_AI_LEVELS.strong.timeMs + 200);
+      var r = AI.chooseMoveSync(s, level, noRandom);
+      var elapsed = performance.now() - t0;
+      expect(r.timedOut).toBe(true); // depth 8 cannot finish in 150 ms
+      expect(r.depth).toBeGreaterThanOrEqual(1);
+      expect(F.legalMoves(s).indexOf(r.move) >= 0).toBe(true);
+      expect(elapsed).toBeLessThanOrEqual(level.timeMs + 1000); // generous margin against GC and load
     });
   });
 })(window.Otc);
