@@ -7,7 +7,7 @@
   var RECEIVERS = [['p1', '1P'], ['p2', '2P']];
   var DEFAULT_STATE = {
     mode: 'solo', p1: null, p2: null, cpu: null, first: 'random', level: 'normal',
-    handicapLevel: 0, handicapReceiver: 'p1', ruleSetId: 'standard', assist: false, sound: true
+    handicapLevel: 0, handicapReceiver: 'p1', boardSize: 8, winRule: 'normal', assist: false, sound: true
   };
 
   var callbacks = {};
@@ -38,6 +38,8 @@
     s.level = oneOf(saved.level, LEVELS.map(function (l) { return l[0]; }), s.level);
     s.handicapLevel = oneOf(saved.handicapLevel, [0, 1, 2, 3, 4], 0);
     s.handicapReceiver = oneOf(saved.handicapReceiver, ['p1', 'p2'], 'p1');
+    s.boardSize = oneOf(saved.boardSize, [8, 6], 8);
+    s.winRule = oneOf(saved.winRule, ['normal', 'anti'], 'normal');
     s.assist = saved.assist === true;
     s.sound = saved.sound !== false;
     if (s.p1 && s.p1 === s.p2) { s.p2 = null; }
@@ -72,6 +74,8 @@
     choiceGroups.push(entry);
     return entry;
   }
+
+  function currentRuleSetId() { return Otc.RuleSets.idFor(state.boardSize, state.winRule); }
 
   function makePanel(title) {
     var p = el('section', 'panel');
@@ -125,7 +129,7 @@
     els.p2Panel.hidden = solo;
     els.cpuRow.hidden = !solo;
     els.levelPanel.hidden = !solo;
-    els.handicapPanel.hidden = solo;
+    els.handicapPanel.hidden = solo || !Otc.RuleSets.allowsHandicap(currentRuleSetId());
     els.p1Title.textContent = solo ? 'キャラを えらんでね' : '1P の キャラ';
 
     ['p1', 'p2'].forEach(function (slot) {
@@ -143,7 +147,7 @@
     els.cpuName.textContent = 'CPU：' + (cpu ? cpu.name : '？');
     els.rerollBtn.disabled = !state.p1;
 
-    var handicap = state.handicapLevel > 0 && !solo;
+    var handicap = state.handicapLevel > 0 && !solo && Otc.RuleSets.allowsHandicap(currentRuleSetId());
     choiceGroups.forEach(function (g) {
       g.buttons.forEach(function (b) {
         b.el.setAttribute('aria-checked', String(b.value === state[g.key]));
@@ -279,6 +283,11 @@
     makeChoices(els.levelPanel, 'CPUの強さ', LEVELS, 'level');
     root.appendChild(els.levelPanel);
 
+    var rulePanel = makePanel('ルール');
+    makeChoices(rulePanel, '盤の大きさ', [[8, '8x8'], [6, '6x6（ミニ）']], 'boardSize');
+    makeChoices(rulePanel, '勝ち方', [['normal', 'ふつう（おおいほうが かち）'], ['anti', 'アンチ（すくないほうが かち）']], 'winRule');
+    root.appendChild(rulePanel);
+
     els.handicapPanel = makePanel('ハンデ');
     makeChoices(els.handicapPanel, 'ハンデの数', HANDICAPS, 'handicapLevel');
     els.receiverWrap = el('div');
@@ -330,15 +339,17 @@
 
   function readSettings() {
     var solo = state.mode === 'solo';
+    var ruleSetId = currentRuleSetId();
+    var handicapOk = !solo && Otc.RuleSets.allowsHandicap(ruleSetId);
     return {
       mode: state.mode,
       p1: state.p1,
       p2: solo ? state.cpu : state.p2,
       first: state.first,
       level: state.level,
-      handicapLevel: solo ? 0 : state.handicapLevel,
+      handicapLevel: handicapOk ? state.handicapLevel : 0,
       handicapReceiver: state.handicapReceiver,
-      ruleSetId: state.ruleSetId,
+      ruleSetId: ruleSetId,
       assist: state.assist
     };
   }
@@ -421,7 +432,10 @@
     else if (solo) { title = winner === 'p1' ? 'かち！' : 'まけ…'; }
     else { title = (winner === 'p1' ? '1P' : '2P') + 'の かち！'; }
     var score = el('p', 'result-score', '1P ' + view.counts.p1 + ' - ' + view.counts.p2 + ' ' + (solo ? 'CPU' : '2P'));
-    resultBack = buildModal(title, [el('h2', 'result-title', title), score], [
+    var body = [el('h2', 'result-title', title), score];
+    var rule = Otc.RuleSets.get(G.settings.ruleSetId);
+    if (rule && rule.misere) { body.push(el('p', 'result-rule', 'すくないほうが かち')); }
+    resultBack = buildModal(title, body, [
       { text: 'ばんを みる', cls: 'btn-sub', onClick: closeResult },
       { text: 'トップへ', cls: 'btn-sub', onClick: function () { closeResult(); leaveGame(false); } },
       { text: 'もういちど', cls: 'btn-main', onClick: function () { closeResult(); restartGame(); } }
@@ -584,6 +598,8 @@
     }
     G.board = board;
     wrap.appendChild(board);
+    var rule = G.settings.ruleSetId !== 'standard' ? Otc.RuleSets.get(G.settings.ruleSetId) : null;
+    if (rule) { wrap.appendChild(el('div', 'rule-tag', rule.label)); }
     G.banner = el('button', 'pass-banner');
     G.banner.type = 'button';
     G.banner.hidden = true;
