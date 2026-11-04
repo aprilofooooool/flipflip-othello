@@ -36,6 +36,7 @@
     var assistJob = null; // { handle } for the running assist search
     var emotionLine = false; // an emotion (or gameStart) line was said for the latest move
     var lastAdvantage = { p1: -Infinity, p2: -Infinity }; // moveNo of the last winning/losing line
+    var recent = { p1: [], p2: [] }; // per seat: its last 2 reaction emotions, oldest first (game-over emotions excluded)
 
     function isFour() { return !!settings && settings.mode === 'four'; }
     // The rules engine of the current game: Otc.FourEngine in four mode, Otc.Engine otherwise.
@@ -301,38 +302,30 @@
       cursor = history.length - 1;
     }
 
-    function react(input, tookCorner) {
-      var misere = !!input.misere;
-      var r = Otc.Reaction.judge(input);
-      [BLACK, WHITE].forEach(function (color) {
-        var emotion = r[color];
+    // Emits the emotion of every seat that has a reason and says the reason's line (LINE_OF). `reasons`: { color: reason|null }.
+    function showReasons(reasons, seatOf) {
+      Object.keys(reasons).forEach(function (color) {
+        var reason = reasons[color];
+        if (!reason) { return; }
+        var player = seatOf(Number(color));
+        var emotion = Otc.Reaction.emotionOf(reason, recent[player], rng);
         if (!emotion) { return; }
-        var player = playerOf(color);
+        recent[player] = recent[player].concat(emotion).slice(-2);
         bus.emit('emotion', { player: player, emotion: emotion });
-        var situation = null;
-        if (emotion === 'anger') { situation = 'cornerLost'; }
-        else if (emotion === 'sadness') { situation = misere ? null : 'manyFlipped'; }
-        else if (emotion === 'joy') { situation = (tookCorner && !misere) ? 'cornerTaken' : 'goodMove'; }
-        else if (emotion === 'panic' && input.kind === 'pass') { situation = 'pass'; }
+        var situation = Otc.Reaction.LINE_OF[reason];
         if (situation) { emotionLine = true; say(player, situation); }
       });
     }
 
+    function react(input) {
+      showReasons(Otc.Reaction.reasons(input), playerOf);
+    }
+
     // ---- four-player helpers (reactions, game over, winning/losing lines, start colours) ----
 
-    // input: the Otc.Reaction.judgeFour input. Four has no anger and no misere.
+    // input: the Otc.Reaction.reasonsFour input.
     function reactFour(input) {
-      var r = Otc.Reaction.judgeFour(input);
-      FOUR_SEATS.forEach(function (player) {
-        var emotion = r[colors[player]];
-        if (!emotion) { return; }
-        bus.emit('emotion', { player: player, emotion: emotion });
-        var situation = null;
-        if (emotion === 'sadness') { situation = 'manyFlipped'; }
-        else if (emotion === 'joy') { situation = input.tookCorner ? 'cornerTaken' : 'goodMove'; }
-        else if (emotion === 'panic' && input.kind === 'pass') { situation = 'pass'; }
-        if (situation) { emotionLine = true; say(player, situation); }
-      });
+      showReasons(Otc.Reaction.reasonsFour(input), playerOf);
     }
 
     // Colours that had discs before the move and have none after it.
@@ -404,7 +397,8 @@
       if (isFour()) {
         reactFour({
           mover: mover, kind: 'move', rescue: res.rescue, tookCorner: tookCorner, lost: res.lost,
-          deltas: Otc.Reaction.deltasFour(state, res.state), wiped: wipedColors(state, res.state),
+          deltas: Otc.Reaction.deltasFour(state, res.state),
+          losses: Otc.Reaction.lossesFour(state, res.state), wiped: wipedColors(state, res.state),
           replay: false, ruleSetId: 'four'
         });
       } else {
@@ -412,7 +406,7 @@
           mover: mover, kind: 'move', flippedCount: res.flipped.length, tookCorner: tookCorner,
           deltaE: Otc.Reaction.deltaFor(state, res.state, mover), replay: false,
           misere: Otc.RuleSets.get(state.ruleSetId).misere, ruleSetId: state.ruleSetId
-        }, tookCorner);
+        });
       }
       emitState();
       save();
@@ -523,11 +517,11 @@
       emotionLine = false;
       if (isFour()) {
         reactFour({
-          mover: before.turn, kind: 'pass', rescue: false, tookCorner: false, lost: {}, deltas: {}, wiped: [],
+          mover: before.turn, kind: 'pass', rescue: false, tookCorner: false, lost: {}, deltas: {}, losses: {}, wiped: [],
           replay: replay, ruleSetId: 'four'
         });
       } else {
-        react({ mover: before.turn, kind: 'pass', flippedCount: 0, tookCorner: false, deltaE: 0, replay: replay }, false);
+        react({ mover: before.turn, kind: 'pass', flippedCount: 0, tookCorner: false, deltaE: 0, replay: replay });
       }
       emitState();
       save();
@@ -542,7 +536,8 @@
       busy = false;
       assistOn = !!settings.assist;
       lastAdvantage = {};
-      seats().forEach(function (p) { lastAdvantage[p] = -Infinity; });
+      recent = {};
+      seats().forEach(function (p) { lastAdvantage[p] = -Infinity; recent[p] = []; });
     }
 
     function start(s) {

@@ -147,12 +147,14 @@
       expect(Otc.Reaction.isCorner(last.index, 8)).toBe(true);
       var emotions = events(t.log, 'emotion');
       expect(emotions.some(function (e) { return e.emotion === 'joy' && e.player === last.mover; })).toBe(true);
-      expect(emotions.some(function (e) { return e.emotion === 'anger' && e.player !== last.mover; })).toBe(true);
+      expect(emotions.some(function (e) {
+        return ['anger', 'sadness', 'panic'].indexOf(e.emotion) >= 0 && e.player !== last.mover;
+      })).toBe(true);
       var sits = events(t.log, 'line').map(function (l) { return l.situation; });
       expect(sits).toContain('cornerTaken');
       expect(sits).toContain('cornerLost');
     });
-    it('anti で隅を取ると mover に panic、相手に joy、相手のセリフは goodMove', function () {
+    it('anti で隅を取ると mover には emotion が出ず、相手に joy、相手のセリフは goodMove', function () {
       var t = setup({ ruleSetId: 'anti' });
       var guard = 0;
       while (events(t.log, 'moved').every(function (m) { return !Otc.Reaction.isCorner(m.index, 8); }) && guard++ < 30) {
@@ -162,7 +164,10 @@
       var last = moved[moved.length - 1];
       expect(Otc.Reaction.isCorner(last.index, 8)).toBe(true);
       var emotions = events(t.log, 'emotion');
-      expect(emotions.some(function (e) { return e.emotion === 'panic' && e.player === last.mover; })).toBe(true);
+      // The emotions of the corner move itself are the ones after the previous 'moved' event.
+      var lastMovedPos = t.log.map(function (e) { return e.type; }).lastIndexOf('moved');
+      var cornerEmotions = t.log.slice(lastMovedPos).filter(function (e) { return e.type === 'emotion'; }).map(function (e) { return e.payload; });
+      expect(cornerEmotions.some(function (e) { return e.player === last.mover; })).toBe(false);
       expect(emotions.some(function (e) { return e.emotion === 'joy' && e.player !== last.mover; })).toBe(true);
       var sits = events(t.log, 'line').map(function (l) { return l.situation; });
       expect(sits).toContain('goodMove');
@@ -188,8 +193,30 @@
       }
       expect(big()).toBe(true);
       var mover = events(t.log, 'moved').filter(function (m) { return m.flipped.length >= Otc.Const.SADNESS_FLIPS; })[0].mover;
-      expect(events(t.log, 'emotion').some(function (e) { return e.emotion === 'sadness' && e.player === mover; })).toBe(true);
+      var bigPos = t.log.map(function (e) { return e.type === 'moved' && e.payload.flipped.length >= Otc.Const.SADNESS_FLIPS; }).lastIndexOf(true);
+      var bigEmotions = t.log.slice(bigPos).filter(function (e) { return e.type === 'emotion'; }).map(function (e) { return e.payload; });
+      expect(bigEmotions.some(function (e) { return e.emotion === 'sadness' && e.player === mover; })).toBe(false);
       expect(events(t.log, 'line').map(function (l) { return l.situation; }).indexOf('manyFlipped')).toBe(-1);
+    });
+  });
+
+  describe('GameController 打った直後の感情', function () {
+    it('duo で評価が最も下がる手を 5 手続けても、打った人に panic は出ない', function () {
+      var t = setup();
+      for (var n = 0; n < 5; n++) {
+        var v = t.ctrl.getView();
+        var worst = v.legal[0];
+        var worstD = Infinity;
+        v.legal.forEach(function (i) {
+          var d = Otc.Reaction.deltaFor(v.state, E.applyMove(v.state, i).state, v.state.turn);
+          if (d < worstD) { worstD = d; worst = i; }
+        });
+        var from = t.log.length;
+        var mover = v.turnPlayer;
+        expect(t.ctrl.play(worst)).toBe(true);
+        var own = t.log.slice(from).filter(function (e) { return e.type === 'emotion' && e.payload.player === mover; });
+        expect(own.some(function (e) { return e.payload.emotion === 'panic'; })).toBe(false);
+      }
     });
   });
 
@@ -813,6 +840,44 @@
       });
       return createMemStorage(init);
     }
+    // Black takes a corner on each of 3 turns (a1, h1, a8); white answers with a quiet non-corner move in between.
+    var CORNER_ROWS = ['.WB..BW.', '........', '........', 'WB......', 'WB......', 'WB......', 'WB......', '.WB.....'];
+    function cornerRun() {
+      var t = makeCtrl({ rng: function () { return 0; }, storage: savedStore(E.stateFromRows(CORNER_ROWS, E.BLACK), { mode: 'duo' }) });
+      expect(t.ctrl.restore()).toBe(true);
+      return t;
+    }
+    function whiteEmotionsAfter(t, from) {
+      return t.log.slice(from).filter(function (e) { return e.type === 'emotion' && e.payload.player === 'p2'; })
+        .map(function (e) { return e.payload.emotion; });
+    }
+    it('同じ席が角を 3 回取られても、3 回目の感情は anger ではない（直近 2 回が anger のとき外す）', function () {
+      var t = cornerRun();
+      var got = [];
+      [[0, null], [7, 26], [56, 34]].forEach(function (step, k) {
+        if (step[1] !== null) { expect(t.ctrl.play(step[1])).toBe(true); }
+        var from = t.log.length;
+        expect(t.ctrl.play(step[0])).toBe(true);
+        got = got.concat(whiteEmotionsAfter(t, from));
+      });
+      expect(got).toEqual(['anger', 'anger', 'sadness']);
+    });
+    it('undo → redo で直近の記録は変わらない（次の角で sadness）', function () {
+      var t = cornerRun();
+      var from = t.log.length;
+      t.ctrl.play(0);
+      t.ctrl.play(26);
+      t.ctrl.play(7);
+      expect(whiteEmotionsAfter(t, from)).toEqual(['anger', 'anger']);
+      var mark = t.log.length;
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.redo()).toBe(true);
+      expect(t.log.slice(mark).filter(function (e) { return e.type === 'emotion'; }).length).toBe(0);
+      t.ctrl.play(34);
+      from = t.log.length;
+      t.ctrl.play(56);
+      expect(whiteEmotionsAfter(t, from)).toEqual(['sadness']);
+    });
     it('CPU 手番の局面を restore → CPU が考え始める', function () {
       var t = setupSolo();
       t.ctrl.play(t.ctrl.getView().legal[0]);
@@ -994,6 +1059,19 @@
       expect(t.ctrl.play(0)).toBe(true);
       var p1 = events(t.log, 'emotion').filter(function (e) { return e.player === 'p1'; });
       expect(p1).toEqual([{ player: 'p1', emotion: 'panic' }]);
+    });
+    it('ほかの席の手で石を 4 個返された席に、hurt の感情と manyFlipped のセリフ', function () {
+      // p2 (WHITE) at a1 flips b1..e1, 4 RED (p1) discs; p1 keeps one more disc at d6.
+      var rows = ['.rrrrw..', '........', '........', '...kb...', '........', '...r....', '........', '........'];
+      var t = makeCtrl({ storage: storeOf(fourSaveData(F.stateFromRows(rows, F.WHITE), { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      var from = t.log.length;
+      expect(t.ctrl.play(0)).toBe(true);
+      var after = t.log.slice(from);
+      var p1 = after.filter(function (e) { return e.type === 'emotion' && e.payload.player === 'p1'; });
+      expect(p1.length).toBe(1);
+      expect(['anger', 'sadness', 'panic']).toContain(p1[0].payload.emotion);
+      expect(after.some(function (e) { return e.type === 'line' && e.payload.player === 'p1' && e.payload.situation === 'manyFlipped'; })).toBe(true);
     });
     it('終局: gameover の winners / ranks、1位 joy＋win、他は sadness＋lose', function () {
       var rows = ['.wrrrrrr', 'rrrrrrrr', 'rrrrwwww', 'wwwwwwww', 'wwwwwwww', 'kkkkkkkk', 'kkkkkkbb', 'bbbbbbbb'];
