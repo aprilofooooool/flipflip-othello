@@ -172,4 +172,98 @@
       expect(Otc.RuleSets.list.indexOf(rs)).toBe(-1);
     });
   });
+
+  describe('FourAI', function () {
+    var AI = Otc.FourAI;
+    var noRandom = function () { return 0.99; };
+
+    // Deterministic mid-game: 14 plies from the start, each ply picks a legal move by a fixed LCG.
+    function midgame() {
+      var s = F.createInitialState(F.RED);
+      var seed = 12345;
+      for (var i = 0; i < 14; i++) {
+        var ms = F.legalMoves(s);
+        if (ms.length === 0) { s = F.applyPass(s); continue; }
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        s = F.applyMove(s, ms[seed % ms.length]).state;
+      }
+      return s;
+    }
+
+    function fakeScheduler() {
+      var queue = [];
+      return {
+        queue: queue,
+        setTimeout: function (fn) { queue.push(fn); return queue.length; },
+        clearTimeout: function (id) { queue[id - 1] = null; },
+        now: function () { return performance.now(); },
+        runNext: function () {
+          var fn = queue.shift();
+          if (fn) { fn(); }
+          return queue.length > 0;
+        }
+      };
+    }
+
+    it('選ぶ手は必ず合法手（3レベル × 初期局面と中盤の固定局面）', function () {
+      var states = [F.createInitialState(F.RED), midgame()];
+      ['easy', 'normal', 'strong'].forEach(function (level) {
+        states.forEach(function (s) {
+          var r = AI.chooseMoveSync(s, level, noRandom);
+          expect(F.legalMoves(s).indexOf(r.move) >= 0).toBe(true);
+        });
+      });
+    });
+
+    it('救済の番は救済できるマスを選ぶ', function () {
+      var rows = board({ d4: 'k', e4: 'w', d5: 'b', e5: 'k' });
+      var s = F.stateFromRows(rows, F.RED);
+      expect(F.isRescueTurn(s)).toBe(true);
+      var r = AI.chooseMoveSync(s, 'normal', noRandom);
+      expect(F.legalMoves(s).indexOf(r.move) >= 0).toBe(true);
+      expect(F.applyMove(s, r.move).rescue).toBe(true);
+    });
+
+    it('evaluate は自分の色の量だけで決まる', function () {
+      var a = F.stateFromRows(board({ d4: 'k', e4: 'r', f4: 'w', e5: 'b', f5: 'r', a8: 'k' }), F.BLACK);
+      // Same black discs and the same black moves; the other three colours are shuffled.
+      var b = F.stateFromRows(board({ d4: 'k', e4: 'w', f4: 'r', e5: 'r', f5: 'b', a8: 'k' }), F.BLACK);
+      expect(F.legalMoves(a).length > 0).toBe(true);
+      expect(AI.evaluate(a, F.BLACK)).toBe(AI.evaluate(b, F.BLACK));
+      expect(AI.scoreFor(a, F.BLACK)).toBe(AI.evaluate(a, F.BLACK));
+    });
+
+    it('1手で取れる隅を normal は取る', function () {
+      var s = F.stateFromRows(board({ b1: 'r', c1: 'k', d5: 'k', e5: 'w' }), F.BLACK);
+      expect(F.legalMoves(s).indexOf(idx('a1')) >= 0).toBe(true);
+      expect(F.legalMoves(s).length > 1).toBe(true);
+      expect(AI.chooseMoveSync(s, 'normal', noRandom).move).toBe(idx('a1'));
+    });
+
+    it('search は cancel 後に onDone を呼ばない', function () {
+      var sched = fakeScheduler();
+      var called = 0;
+      var h = AI.search(midgame(), 'normal', function () { called++; }, { scheduler: sched, rng: noRandom });
+      sched.runNext();
+      h.cancel();
+      while (sched.runNext()) { /* drain */ }
+      expect(called).toBe(0);
+    });
+
+    it('search は最後に合法手を onDone に渡す', function () {
+      var sched = fakeScheduler();
+      var s = midgame();
+      var got = null;
+      AI.search(s, 'easy', function (r) { got = r; }, { scheduler: sched, rng: noRandom });
+      while (sched.runNext()) { /* drain */ }
+      expect(F.legalMoves(s).indexOf(got.move) >= 0).toBe(true);
+    });
+
+    it('strong の chooseMoveSync が timeMs + 200ms 以内に返る', function () {
+      var s = midgame();
+      var t0 = performance.now();
+      AI.chooseMoveSync(s, 'strong', noRandom);
+      expect(performance.now() - t0).toBeLessThanOrEqual(Otc.Const.FOUR_AI_LEVELS.strong.timeMs + 200);
+    });
+  });
 })(window.Otc);

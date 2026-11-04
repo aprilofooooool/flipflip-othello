@@ -67,6 +67,13 @@
       normal: { depth: 3, timeMs: 1000, endgameEmpties: 8, randomRate: 0 },
       strong: { depth: 6, timeMs: 1500, endgameEmpties: 12, randomRate: 0 },
       assist: { depth: 3, timeMs: 600, endgameEmpties: 0, randomRate: 0 }
+    },
+    // 4-player CPU (max^n search). No endgame solver: the game tree has four players.
+    FOUR_AI_LEVELS: {
+      easy: { depth: 1, timeMs: 300, randomRate: 0.3 },
+      normal: { depth: 4, timeMs: 1000, randomRate: 0 },
+      strong: { depth: 8, timeMs: 1500, randomRate: 0 },
+      assist: { depth: 4, timeMs: 600, randomRate: 0 }
     }
   };
 })(window.Otc);
