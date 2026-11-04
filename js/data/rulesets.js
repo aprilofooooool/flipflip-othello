@@ -49,9 +49,9 @@
   // (.claude/docs/reports/2026-11-04-variant-thresholds.md, JOY_DELTA re-measured in 2026-11-05-emotion-tuning-measure.md). ADVANTAGE_EVAL starts at the former JOY_DELTA.
   var list = [
     make('standard', 'ふつうのルール', 8, false),
-    make('anti', '8x8・アンチ', 8, true, { JOY_DELTA: 259, PANIC_DELTA: 475, ADVANTAGE_EVAL: 236 }),
+    make('anti', '8x8・アンチ', 8, true, { JOY_DELTA: 222, PANIC_DELTA: 475, ADVANTAGE_EVAL: 236 }),
     make('mini', '6x6・ふつう', 6, false),
-    make('mini-anti', '6x6・アンチ', 6, true, { JOY_DELTA: 320, PANIC_DELTA: 646, ADVANTAGE_EVAL: 320 })
+    make('mini-anti', '6x6・アンチ', 6, true, { JOY_DELTA: 306, PANIC_DELTA: 646, ADVANTAGE_EVAL: 320 })
   ];
 
   // 4-player mode: rules live in Otc.FourEngine. Kept out of `list` (the measure scripts iterate it).

@@ -1,7 +1,7 @@
 'use strict';
 // Measures the reaction emotions of the "easy" seat.
 // Usage: node tests/tools/measure-emotion.js <joy|rates> [games] [seed] [ruleSetId]
-//   joy   : 2-player easy vs normal (no time limit). p90 of the easy seat's positive delta E = JOY_DELTA candidate.
+//   joy   : 2-player easy vs normal (no time limit). p90 of all the easy seat's own-move delta E (decided scores excluded) = JOY_DELTA candidate.
 //           Defaults: games=200 seed=20261105 ruleSetId=standard
 //   rates : emotion counts per game of the easy seat, using the real reasons / reasonsFour / emotionOf.
 //           2-player (ruleSetId, easy vs normal) and 4-player (1 easy + 3 depth-3 CPUs).
@@ -89,7 +89,7 @@ function joy() {
   const decided = C.WIN_SCORE / 2;
   const D = C.REACTION_SEARCH_DEPTH;
   const t0 = Date.now();
-  const pos = [];
+  const all = [];
   let total = 0;
   let excluded = 0;
   for (let g = 0; g < GAMES; g++) {
@@ -99,13 +99,13 @@ function joy() {
       const b = AI.scoreFor(before, mover, D);
       const a = AI.scoreFor(after, mover, D);
       if (Math.abs(b) >= decided || Math.abs(a) >= decided) { excluded++; return; }
-      if (a - b > 0) { pos.push(a - b); }
+      all.push(a - b);
     });
   }
-  pos.sort((x, y) => x - y);
+  all.sort((x, y) => x - y);
   console.log('rule=' + RULE + ' games=' + GAMES + ' seed=' + SEED + ' elapsedSec=' + sec(t0));
-  console.log('easy moves total=' + total + ' excluded(decided)=' + excluded + ' positive=' + pos.length);
-  console.log('JOY(p90 of easy-seat positive)=' + percentile(pos, 0.9));
+  console.log('easy moves total=' + total + ' excluded(decided)=' + excluded + ' used=' + all.length);
+  console.log('JOY(p90 of easy-seat own moves)=' + percentile(all, 0.9));
 }
 
 // Counter: own.<emotion> (right after the seat's own move), other.<emotion> (after another seat's move).
