@@ -62,7 +62,7 @@
 |---|---|
 | キャラ | `assets/characters/<id>/` に 6 画像を追加 ＋ `js/data/characters.js` に 1 エントリ |
 | 画像の差し替え | 同名で上書き（拡張子を変える時は `characters.js` の `ext` を 1 か所） |
-| ルール | `js/data/rulesets.js` に RuleSet を 1 エントリ（初期 UI は standard 固定） |
+| ルール | `js/data/rulesets.js` に RuleSet を 1 エントリ（設定画面では盤の大きさ 8x8/6x6 と勝ち方 ふつう/アンチを組み合わせて選べる） |
 | 盤面サイズ | RuleSet の `size`（エンジン・AI・描画・テストは N×N 対応済み） |
 | しきい値・待ち時間・難易度 | `js/config/constants.js` |
 | 配色・角丸・アニメ時間 | `css/theme.css` |

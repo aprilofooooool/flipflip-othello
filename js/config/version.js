@@ -1,5 +1,5 @@
 (function (Otc) {
   'use strict';
 
-  Otc.APP_VERSION = '1.0.0';
+  Otc.APP_VERSION = '1.1.0';
 })(window.Otc);
