@@ -65,12 +65,55 @@
     return out;
   }
 
+  // 4-player: every colour's own evaluation change, before -> after a move.
+  function deltasFour(before, after) {
+    var out = {};
+    Otc.FourEngine.ORDER.forEach(function (c) {
+      out[c] = Otc.FourAI.scoreFor(after, c) - Otc.FourAI.scoreFor(before, c);
+    });
+    return out;
+  }
+
+  // 4-player reactions (design 6.2). No Anger. Each colour gets one emotion by PRIORITY.
+  function judgeFour(input) {
+    var joyDelta = threshold('four', 'JOY_DELTA');
+    var panicDelta = threshold('four', 'PANIC_DELTA');
+    var order = Otc.FourEngine.ORDER;
+    var out = {};
+    var cand = {};
+    order.forEach(function (c) { out[c] = null; cand[c] = []; });
+    if (input.replay) { return out; }
+    var me = input.mover;
+    if (input.kind === 'pass') {
+      cand[me].push('panic');
+    } else {
+      if (input.tookCorner) { cand[me].push('joy'); }
+      if (input.rescue) { cand[me].push('joy'); }
+      if (input.deltas[me] >= joyDelta) { cand[me].push('joy'); }
+      order.forEach(function (c) {
+        if (input.deltas[c] <= -panicDelta) { cand[c].push('panic'); }
+        if (input.lost[c] >= C.SADNESS_FLIPS) { cand[c].push('sadness'); }
+      });
+      (input.wiped || []).forEach(function (c) { cand[c].push('panic'); });
+    }
+    order.forEach(function (c) { out[c] = pick(cand[c]); });
+    return out;
+  }
+
   // Picks the one full-screen effect of a move from its emotion events ({ player, emotion }).
   // Game over: only the winner's joy (none on a draw). Solo: only the human (p1); the CPU's emotions show on its avatar only.
   // Duo: PRIORITY decides, the mover wins a tie.
-  function pickEffect(emotions, mover, over, mode) {
-    var solo = mode === 'solo';
-    if (over) {
+  // Four: only human seats (`humans`) count; one human behaves like solo, several like duo; over = { winners: seat[] }.
+  function pickEffect(emotions, mover, over, mode, humans) {
+    var four = mode === 'four';
+    var solo = mode === 'solo' || (four && humans.length === 1);
+    if (four) {
+      emotions = emotions.filter(function (x) { return humans.indexOf(x.player) >= 0; });
+      if (over) {
+        return emotions.filter(function (x) { return over.winners.indexOf(x.player) >= 0 && x.emotion === 'joy'; })[0] || null;
+      }
+      if (solo) { return emotions[0] || null; }
+    } else if (over) {
       if (over.winner === null || (solo && over.winner !== 'p1')) { return null; }
       return emotions.filter(function (x) { return x.player === over.winner && x.emotion === 'joy'; })[0] || null;
     }
@@ -83,5 +126,5 @@
     return best;
   }
 
-  Otc.Reaction = { PRIORITY: PRIORITY, judge: judge, threshold: threshold, deltaFor: deltaFor, isCorner: isCorner, pickEffect: pickEffect };
+  Otc.Reaction = { PRIORITY: PRIORITY, judge: judge, judgeFour: judgeFour, deltasFour: deltasFour, threshold: threshold, deltaFor: deltaFor, isCorner: isCorner, pickEffect: pickEffect };
 })(window.Otc);

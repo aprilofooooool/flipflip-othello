@@ -128,4 +128,74 @@
       expect(R.pickEffect([ev('p1', 'joy')], 'p1', { winner: null }, 'duo')).toBe(null);
     });
   });
+  describe('Reaction four', function () {
+    var F = Otc.FourEngine;
+    var BIG4 = Math.max(C.JOY_DELTA, C.PANIC_DELTA) + 1;
+    function zero() { var o = {}; F.ORDER.forEach(function (c) { o[c] = 0; }); return o; }
+    function j4(over) {
+      var o = { mover: F.RED, kind: 'move', rescue: false, tookCorner: false, lost: zero(), deltas: zero(), wiped: [], replay: false, ruleSetId: 'four' };
+      Object.keys(over || {}).forEach(function (k) { o[k] = over[k]; });
+      return R.judgeFour(o);
+    }
+    function with1(color, v) { var o = zero(); o[color] = v; return o; }
+    it('deltasFour: 4色それぞれ scoreFor の差', function () {
+      var s = F.createInitialState();
+      var d = R.deltasFour(s, s);
+      F.ORDER.forEach(function (c) { expect(d[c]).toBe(0); });
+    });
+    it('隅を取った人は Joy、他の色は Anger にならない', function () {
+      var r = j4({ tookCorner: true });
+      expect(r[F.RED]).toBe('joy');
+      F.ORDER.forEach(function (c) { if (c !== F.RED) { expect(r[c]).toBe(null); } });
+    });
+    it('打った人の評価が大きく上がると Joy', function () {
+      expect(j4({ deltas: with1(F.RED, BIG4) })[F.RED]).toBe('joy');
+    });
+    it('打った人の評価が大きく下がると Panic', function () {
+      expect(j4({ deltas: with1(F.RED, -BIG4) })[F.RED]).toBe('panic');
+    });
+    it('自分の石を5個返された色は Sadness', function () {
+      var r = j4({ lost: with1(F.WHITE, C.SADNESS_FLIPS) });
+      expect(r[F.WHITE]).toBe('sadness');
+      expect(j4({ lost: with1(F.WHITE, C.SADNESS_FLIPS - 1) })[F.WHITE]).toBe(null);
+    });
+    it('全滅した色は Panic', function () {
+      expect(j4({ wiped: [F.BLUE] })[F.BLUE]).toBe('panic');
+    });
+    it('打っていない色の評価が大きく下がると Panic、上がっても Joy にならない', function () {
+      expect(j4({ deltas: with1(F.BLACK, -BIG4) })[F.BLACK]).toBe('panic');
+      expect(j4({ deltas: with1(F.BLACK, BIG4) })[F.BLACK]).toBe(null);
+    });
+    it('パスした人は Panic', function () {
+      var r = j4({ kind: 'pass' });
+      expect(r[F.RED]).toBe('panic');
+      expect(r[F.WHITE]).toBe(null);
+    });
+    it('救済した人は Joy', function () {
+      expect(j4({ rescue: true })[F.RED]).toBe('joy');
+    });
+    it('Panic は Sadness より優先', function () {
+      expect(j4({ lost: with1(F.WHITE, 6), deltas: with1(F.WHITE, -BIG4) })[F.WHITE]).toBe('panic');
+    });
+    it('replay なら全員 null', function () {
+      var r = j4({ tookCorner: true, lost: with1(F.WHITE, 9), wiped: [F.BLUE], replay: true });
+      F.ORDER.forEach(function (c) { expect(r[c]).toBe(null); });
+    });
+    var ev = function (player, emotion) { return { player: player, emotion: emotion }; };
+    it('four・人間1人: CPU の感情は選ばない', function () {
+      expect(R.pickEffect([ev('p2', 'panic')], 'p2', null, 'four', ['p1'])).toBe(null);
+      expect(R.pickEffect([ev('p2', 'joy'), ev('p1', 'sadness')], 'p2', null, 'four', ['p1']).player).toBe('p1');
+    });
+    it('four・人間2人: Panic が Joy より優先', function () {
+      expect(R.pickEffect([ev('p1', 'joy'), ev('p2', 'panic'), ev('p3', 'anger')], 'p1', null, 'four', ['p1', 'p2']).emotion).toBe('panic');
+    });
+    it('four・人間2人: 同順位なら打った人が勝つ', function () {
+      expect(R.pickEffect([ev('p1', 'joy'), ev('p2', 'joy')], 'p2', null, 'four', ['p1', 'p2']).player).toBe('p2');
+    });
+    it('four・終局: 人間の勝者の Joy、CPU だけが勝ったら null', function () {
+      var emo = [ev('p1', 'sadness'), ev('p3', 'joy')];
+      expect(R.pickEffect(emo.concat(ev('p2', 'joy')), 'p2', { winners: ['p2', 'p3'] }, 'four', ['p1', 'p2']).player).toBe('p2');
+      expect(R.pickEffect(emo, 'p3', { winners: ['p3'] }, 'four', ['p1', 'p2'])).toBe(null);
+    });
+  });
 })(window.Otc);
