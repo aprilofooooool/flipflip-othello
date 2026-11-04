@@ -17,9 +17,9 @@
     };
   }
 
-  // Plays up to `plies` random plies (passes included) from the initial position.
-  function randomState(rand, plies) {
-    var s = E.createInitialState(std());
+  // Plays up to `plies` random plies (passes included) from the initial position of the rule set.
+  function randomState(rand, plies, ruleSetId) {
+    var s = E.createInitialState(ruleSetId ? Otc.RuleSets.get(ruleSetId) : std());
     for (var i = 0; i < plies && !E.isGameOver(s); i++) {
       if (E.mustPass(s)) {
         s = E.applyPass(s);
@@ -138,6 +138,31 @@
       expect(AI.evaluate(s, BLACK)).toBe(Otc.Const.WIN_SCORE + 48);
       expect(AI.evaluate(s, WHITE)).toBe(-Otc.Const.WIN_SCORE - 48);
     });
+
+    it('anti の終局値: 石が少ない側が +WIN_SCORE', function () {
+      var rows = ['BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'BBBBBBBB', 'WWWWWWWW'];
+      var s = E.stateFromRows(rows, BLACK, 'anti');
+      expect(AI.evaluate(s, BLACK)).toBe(-(Otc.Const.WIN_SCORE + 48));
+      expect(AI.evaluate(s, WHITE)).toBe(Otc.Const.WIN_SCORE + 48);
+    });
+
+    it('anti の評価: 隅に自石があると下がる', function () {
+      var plain = ['........', '........', '........', '...WB...', '...BW...', '........', '........', '........'];
+      var corner = ['B.......'].concat(plain.slice(1));
+      ['standard', 'anti'].forEach(function (id) {
+        var gain = AI.evaluate(E.stateFromRows(corner, BLACK, id), BLACK) -
+          AI.evaluate(E.stateFromRows(plain, BLACK, id), BLACK);
+        expect(id === 'standard' ? gain > 0 : gain < 0).toBe(true);
+      });
+    });
+
+    it('anti でも evaluate はゼロサム', function () {
+      var rand = mulberry32(1);
+      for (var i = 0; i < 20; i++) {
+        var s = randomState(rand, Math.floor(rand() * 40), 'anti');
+        expect(AI.evaluate(s, BLACK)).toBe(-AI.evaluate(s, WHITE));
+      }
+    });
   });
 
   describe('AI.orderMoves', function () {
@@ -163,6 +188,19 @@
         checked++;
       }
       expect(checked).toBe(50);
+    });
+
+    it('standard: 固定 20 局面で searchSync の手と値が変更前と同じ', function () {
+      // Recorded with the code before rule-aware search (commit cda0eed): [move, score] at depth 3.
+      var expected = [[7, -685], [42, -34], [16, -779], [19, 123], [4, 283], [8, -201], [16, 95],
+        [2, -321], [19, 466], [57, 147], [5, -906], [45, -9], [38, -141], [52, -231], [8, 1318],
+        [16, -504], [0, 712], [11, 135], [21, 215], [32, 1462]];
+      var rand = mulberry32(2024);
+      for (var i = 0; i < 20; i++) {
+        var s = randomState(rand, Math.floor(rand() * 50));
+        var r = AI.searchSync(s, { depth: 3 });
+        expect([r.move, r.score]).toEqual(expected[i]);
+      }
     });
 
     it('strong takes the corner when the only alternative is an X square', function () {
@@ -300,6 +338,60 @@
       console.log('strong max ms: midgame ' + maxMid.toFixed(0) + ', 12-14 empties ' + maxEnd.toFixed(0));
       expect(maxMid).toBeLessThanOrEqual(limit);
       expect(maxEnd).toBeLessThanOrEqual(limit);
+    });
+
+    it('4 ルールそれぞれ、ランダム 20 局面で CPU の手が E.legalMoves に含まれる', function () {
+      ['standard', 'anti', 'mini', 'mini-anti'].forEach(function (id) {
+        var rand = mulberry32(31);
+        var checked = 0;
+        for (var n = 0; n < 20; n++) {
+          var s = randomState(rand, Math.floor(rand() * (Otc.RuleSets.get(id).size === 6 ? 28 : 50)), id);
+          if (E.isGameOver(s) || E.mustPass(s)) { continue; }
+          expect(E.legalMoves(s)).toContain(AI.chooseMoveSync(s, 'normal', rand).move);
+          checked++;
+        }
+        expect(checked).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    it('mini の strong が 1 局を最後まで、各手 timeMs + 100ms 以内・例外なしで打つ', function () {
+      var limit = C.AI_LEVELS.strong.timeMs + 100;
+      var s = E.createInitialState(Otc.RuleSets.get('mini'));
+      var maxMs = 0;
+      while (!E.isGameOver(s)) {
+        if (E.mustPass(s)) { s = E.applyPass(s); continue; }
+        var t0 = performance.now();
+        var r = AI.chooseMoveSync(s, 'strong', mulberry32(1));
+        maxMs = Math.max(maxMs, performance.now() - t0);
+        expect(E.legalMoves(s)).toContain(r.move);
+        s = E.applyMove(s, r.move).state;
+      }
+      console.log('mini strong max ms: ' + maxMs.toFixed(0));
+      expect(s.moveNo).toBeGreaterThanOrEqual(1);
+      expect(maxMs).toBeLessThanOrEqual(limit);
+    });
+
+    it('hooked な RuleSet では genMoves が rs.legalMoves の結果だけを返す', function () {
+      // Temporary rule set whose only legal move is the highest-index standard move.
+      var hooked = {
+        id: 'test-hooked', label: 'test', size: 8, misere: false,
+        legalMoves: function (state) {
+          var last = null;
+          for (var i = 0; i < state.cells.length; i++) {
+            if (state.cells[i] === 0 && E.flipsFor(state, i).length > 0) { last = i; }
+          }
+          return last === null ? [] : [last];
+        }
+      };
+      var rows = ['........', '........', '........', '...WB...', '...BW...', '........', '........', '........'];
+      Otc.RuleSets.list.push(hooked);
+      try {
+        var level = { depth: 3, timeMs: 60000, endgameEmpties: 0, randomRate: 0 };
+        expect(AI.chooseMoveSync(E.stateFromRows(rows, BLACK), level).move).toBe(19);
+        expect(AI.chooseMoveSync(E.stateFromRows(rows, BLACK, 'test-hooked'), level).move).toBe(44);
+      } finally {
+        Otc.RuleSets.list.splice(Otc.RuleSets.list.indexOf(hooked), 1);
+      }
     });
 
     it('with an exact solve, the pre-solve deepening stays shallow', function () {

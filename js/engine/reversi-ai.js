@@ -63,14 +63,41 @@
     return out;
   }
 
-  // ---- Evaluation --------------------------------------------------------------------------
-  // `probe` is a reusable lightweight state for Engine.flipsFor (it reads size, cells, turn only).
-  var probe = { size: 0, cells: null, turn: 0 };
+  // ---- Rule profiles (cached per rule set id) -----------------------------------------------
+  // misere: fewer discs wins. phases: EVAL_PHASES scaled to the board area (8x8 keeps 41/15/0).
+  // hooked: the rule set overrides move generation or game over, so the search goes through E.legalMoves.
+  var profileCache = {};
 
-  function countMoves(size, cells, turn) {
+  function profileFor(ruleSetId) {
+    if (!profileCache[ruleSetId]) {
+      var rs = Otc.RuleSets.get(ruleSetId);
+      var area = rs.size * rs.size;
+      profileCache[ruleSetId] = {
+        id: ruleSetId,
+        misere: !!rs.misere,
+        phases: C.EVAL_PHASES.map(function (p) {
+          var q = Object.assign({}, p);
+          q.minEmpties = Math.round(p.minEmpties * area / 64);
+          return q;
+        }),
+        hooked: !!(rs.legalMoves || rs.isGameOver)
+      };
+    }
+    return profileCache[ruleSetId];
+  }
+
+  // ---- Evaluation --------------------------------------------------------------------------
+  // `probe` is a reusable lightweight state for Engine.flipsFor / Engine.legalMoves.
+  var probe = { size: 0, cells: null, turn: 0, ruleSetId: null };
+
+  function countMoves(size, cells, turn, prof) {
     probe.size = size;
     probe.cells = cells;
     probe.turn = turn;
+    if (prof.hooked) {
+      probe.ruleSetId = prof.id;
+      return E.legalMoves(probe).length;
+    }
     var n = 0;
     for (var i = 0; i < cells.length; i++) {
       if (cells[i] === 0 && E.flipsFor(probe, i).length > 0) { n++; }
@@ -99,8 +126,8 @@
     return count;
   }
 
-  function phaseFor(empties) {
-    var phases = C.EVAL_PHASES;
+  function phaseFor(empties, prof) {
+    var phases = prof.phases;
     for (var i = 0; i < phases.length; i++) {
       if (empties >= phases[i].minEmpties) { return phases[i]; }
     }
@@ -108,7 +135,8 @@
   }
 
   // Value from `player`'s point of view of the position (size, cells), independent of whose turn.
-  function evalCells(size, cells, player) {
+  // Anti (misere) flips the sign of the position, stable and disc terms; mobility keeps its sign.
+  function evalCells(size, cells, player, prof) {
     var weights = tableFor(size).weights;
     var mine = 0;
     var theirs = 0;
@@ -118,35 +146,42 @@
       var v = cells[i];
       if (v === 0) { empties++; } else if (v === player) { mine++; pos += weights[i]; } else { theirs++; pos -= weights[i]; }
     }
-    var mobMine = countMoves(size, cells, player);
-    var mobTheirs = countMoves(size, cells, -player);
+    var mobMine = countMoves(size, cells, player, prof);
+    var mobTheirs = countMoves(size, cells, -player, prof);
     if (mobMine === 0 && mobTheirs === 0) {
-      var diff = mine - theirs;
+      var diff = prof.misere ? theirs - mine : mine - theirs;
       if (diff > 0) { return C.WIN_SCORE + diff; }
       if (diff < 0) { return -C.WIN_SCORE + diff; }
       return 0;
     }
-    var ph = phaseFor(empties);
+    var ph = phaseFor(empties, prof);
     var stable = cornerAnchored(size, cells, player) - cornerAnchored(size, cells, -player);
-    return ph.position * pos + ph.mobility * (mobMine - mobTheirs) + ph.stable * stable +
-      ph.disc * (mine - theirs);
+    var sign = prof.misere ? -1 : 1;
+    return sign * ph.position * pos + ph.mobility * (mobMine - mobTheirs) + sign * ph.stable * stable +
+      sign * ph.disc * (mine - theirs);
   }
 
   function evaluate(state, player) {
-    return evalCells(state.size, state.cells, player);
+    return evalCells(state.size, state.cells, player, profileFor(state.ruleSetId));
   }
 
   // ---- Search (private mutable make/unmake on a working copy) -------------------------------
   var ctx = null;
 
   // Legal moves of w.turn with their flips, ordered by static class and weight.
+  // Hooked rule sets get their moves from E.legalMoves; otherwise flipsFor is called directly (speed).
   function genMoves(w, keys) {
     var out = [];
     var cells = w.cells;
-    for (var i = 0; i < cells.length; i++) {
-      if (cells[i] === 0) {
-        var f = E.flipsFor(w, i);
-        if (f.length > 0) { out.push({ i: i, f: f }); }
+    if (ctx.prof.hooked) {
+      var ms = E.legalMoves(w);
+      for (var j = 0; j < ms.length; j++) { out.push({ i: ms[j], f: E.flipsFor(w, ms[j]) }); }
+    } else {
+      for (var i = 0; i < cells.length; i++) {
+        if (cells[i] === 0) {
+          var f = E.flipsFor(w, i);
+          if (f.length > 0) { out.push({ i: i, f: f }); }
+        }
       }
     }
     out.sort(function (a, b) { return (keys[a.i] - keys[b.i]) || (a.i - b.i); });
@@ -178,14 +213,19 @@
   // Negamax with alpha-beta. exact: unlimited depth, game-over values only (depth is ignored).
   function negamax(w, depth, alpha, beta, exact) {
     if (tick()) { return 0; }
-    if (!exact && depth === 0) { return evalCells(w.size, w.cells, w.turn); }
+    var prof = ctx.prof;
+    if (!exact && depth === 0) { return evalCells(w.size, w.cells, w.turn, prof); }
     var keys = ctx.keys;
     var moves = genMoves(w, keys);
     if (moves.length === 0) {
       w.turn = -w.turn;
       var opponentCanMove = false;
-      for (var i = 0; i < w.cells.length && !opponentCanMove; i++) {
-        if (w.cells[i] === 0 && E.flipsFor(w, i).length > 0) { opponentCanMove = true; }
+      if (prof.hooked) {
+        opponentCanMove = E.legalMoves(w).length > 0;
+      } else {
+        for (var i = 0; i < w.cells.length && !opponentCanMove; i++) {
+          if (w.cells[i] === 0 && E.flipsFor(w, i).length > 0) { opponentCanMove = true; }
+        }
       }
       var v;
       if (opponentCanMove) {
@@ -193,7 +233,7 @@
         w.turn = -w.turn;
       } else {
         w.turn = -w.turn;
-        v = evalCells(w.size, w.cells, w.turn); // game-over value, same scale as every other score
+        v = evalCells(w.size, w.cells, w.turn, prof); // game-over value, same scale as every other score
       }
       return v;
     }
@@ -245,7 +285,7 @@
   function createSession(state, options) {
     var opts = options || {};
     var endgameEmpties = opts.endgameEmpties || 0;
-    var w = { size: state.size, cells: new Int8Array(state.cells), turn: state.turn };
+    var w = { size: state.size, cells: new Int8Array(state.cells), turn: state.turn, ruleSetId: state.ruleSetId };
     var empties = 0;
     for (var i = 0; i < w.cells.length; i++) { if (w.cells[i] === 0) { empties++; } }
     var session = {
@@ -254,7 +294,8 @@
         nodes: 0,
         aborted: false,
         deadline: opts.deadline === undefined ? Infinity : opts.deadline,
-        keys: tableFor(state.size).keys
+        keys: tableFor(state.size).keys,
+        prof: profileFor(state.ruleSetId)
       },
       empties: empties,
       solve: endgameEmpties > 0 && empties <= endgameEmpties,
@@ -271,7 +312,7 @@
     var first = genMoves(w, ctx.keys);
     session.best = {
       move: first.length > 0 ? first[0].i : null,
-      score: evalCells(w.size, w.cells, w.turn),
+      score: evalCells(w.size, w.cells, w.turn, ctx.prof),
       depth: 0
     };
     ctx = null;
