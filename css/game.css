@@ -286,22 +286,31 @@
 .game.four .pos-br { grid-area: br; }
 .game.four .pos-bl { grid-area: bl; }
 .game.four .char-panel { gap: 6px; padding: 4px 6px; }
-.game.four .panel-info { flex: 1; min-width: 0; gap: 1px; }
+/* Rows sit at the bottom so the count / てばん row stays below the line bubble area. */
+.game.four .panel-info { flex: 1; min-width: 0; gap: 1px; align-self: stretch; justify-content: flex-end; }
 .game.four .panel-tag { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; white-space: nowrap; }
 .game.four .panel-name { max-width: 100%; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; }
 .game.four .panel-row { display: flex; align-items: center; gap: 4px; }
 .game.four .panel-count { font-size: 1.25rem; }
 .game.four .turn-mark { font-size: 0.75rem; padding: 1px 8px; }
-/* The speech bubble lies over the info column (no spare width in a half panel); its tail points at the avatar. */
-.game.four .bubble-slot {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: calc(6px + var(--avatar-size));
+/* Half panels have no spare width, so the bubbles are laid over the panel (the slot itself takes no space):
+   a line bubble is sized to its text over the tag / name rows only (count and てばん stay visible), and
+   the thinking dots are a small chip on the avatar's lower-left corner (all info stays visible). */
+.game.four .bubble-slot { display: contents; }
+.game.four .bubble { z-index: 2; pointer-events: none; }
+.game.four .bubble-line {
+  inset: auto;
+  top: 3px;
+  left: calc(6px + var(--avatar-size) + 4px);
   right: 4px;
-  z-index: 2;
-  pointer-events: none;
+  max-height: calc(100% - 36px);
+  margin: 0;
+  font-size: 0.75rem;
 }
+.game.four .bubble-think { inset: auto; left: 3px; bottom: 3px; margin: 0; padding: 3px 5px; border-radius: var(--radius-round); }
+.game.four .bubble-think::before { display: none; }
+.game.four .bubble-dots { gap: 3px; }
+.game.four .bubble-dots span { width: 6px; height: 6px; }
 .game.four .controls { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .game.four .help-btn {
   position: static;
@@ -375,13 +384,13 @@
     grid-template-rows: repeat(2, calc((var(--board-size) - var(--controls-h) - 2 * var(--gap)) / 2)) var(--controls-h);
     grid-template-areas: "tl board tr" "bl board br" "c1 board c2";
   }
-  /* Top-aligned so the bubble slot below can be placed from the avatar size. */
+  /* Top-aligned so the line bubble can be limited to the avatar band (the info rows below stay visible). */
   .game.four .char-panel { justify-content: flex-start; gap: 4px; padding: 8px; }
   .game.four .panel-info { flex: none; max-width: 100%; align-items: center; }
-  /* Under the avatar, at most 4.2em tall so a tall desktop panel keeps the count visible. */
-  .game.four .bubble-slot { top: calc(8px + var(--avatar-size) + 4px); bottom: auto; height: 4.2em; left: 4px; right: 4px; min-height: 0; }
-  .game.four .bubble { margin-left: 0; margin-top: 6px; }
-  .game.four .bubble::before { left: 50%; top: -2px; transform: translate(-50%, -50%) rotate(135deg); }
+  .game.four .bubble-line { top: 4px; left: 4px; right: 4px; max-height: calc(var(--avatar-size) + 8px); }
+  .game.four .bubble-line::before { display: none; }
+  .game.four .pos-tr .bubble-line { right: calc(var(--help-reserve) + 8px); } /* clear of the help button */
+  .game.four .bubble-think { left: 4px; top: 4px; bottom: auto; }
   /* .controls is display: contents here, so the help button is a grid item laid over the top-right panel. */
   .game.four .help-btn {
     grid-area: tr;
