@@ -6,14 +6,15 @@
   var HANDICAPS = [[0, 'なし'], [1, 'すみ1'], [2, 'すみ2'], [3, 'すみ3'], [4, 'すみ4']];
   var RECEIVERS = [['p1', '1P'], ['p2', '2P']];
   var DEFAULT_STATE = {
-    mode: 'solo', p1: null, p2: null, cpu: null, first: 'random', level: 'normal',
+    mode: 'solo', humans: 2, p1: null, p2: null, p3: null, p4: null, cpu: null, first: 'random', level: 'normal',
     handicapLevel: 0, handicapReceiver: 'p1', boardSize: 8, winRule: 'normal', assist: false, sound: true
   };
 
   var callbacks = {};
   var state = null;
   var els = {};
-  var cards = { p1: {}, p2: {} };
+  var cards = { p1: {}, p2: {}, p3: {}, p4: {} };
+  var SEATS = ['p1', 'p2', 'p3', 'p4'];
   var choiceGroups = [];
 
   function el(tag, cls, text) {
@@ -30,9 +31,12 @@
     var saved = Otc.Storage.get(Otc.Const.SETTINGS_KEY, {}) || {};
     var s = {};
     Object.keys(DEFAULT_STATE).forEach(function (k) { s[k] = DEFAULT_STATE[k]; });
-    s.mode = oneOf(saved.mode, ['solo', 'duo'], s.mode);
+    s.mode = oneOf(saved.mode, ['solo', 'duo', 'four'], s.mode);
+    s.humans = oneOf(saved.humans, [1, 2, 3, 4], s.humans);
     s.p1 = validId(saved.p1);
     s.p2 = validId(saved.p2);
+    s.p3 = validId(saved.p3);
+    s.p4 = validId(saved.p4);
     s.cpu = validId(saved.cpu);
     s.first = oneOf(saved.first, ['p1', 'p2', 'random'], s.first);
     s.level = oneOf(saved.level, LEVELS.map(function (l) { return l[0]; }), s.level);
@@ -43,6 +47,8 @@
     s.assist = saved.assist === true;
     s.sound = saved.sound !== false;
     if (s.p1 && s.p1 === s.p2) { s.p2 = null; }
+    if (s.p3 && (s.p3 === s.p1 || s.p3 === s.p2)) { s.p3 = null; }
+    if (s.p4 && (s.p4 === s.p1 || s.p4 === s.p2 || s.p4 === s.p3)) { s.p4 = null; }
     if (s.p1 && s.p1 === s.cpu) { s.cpu = null; }
     if (s.p1 && !s.cpu) { s.cpu = Otc.CharacterManager.pickCpu(s.p1).id; }
     return s;
@@ -116,8 +122,18 @@
     state.cpu = next.id;
   }
 
+  function humanPicks() { return SEATS.map(function (k) { return state[k]; }); }
+
   function startReason() {
     if (state.mode === 'solo') { return state.p1 ? '' : 'キャラを えらんでね'; }
+    if (state.mode === 'four') {
+      var seats = Otc.CharacterManager.fillSeats(humanPicks(), state.humans);
+      for (var i = 0; i < state.humans; i += 1) {
+        if (!state[SEATS[i]]) { return (i + 1) + 'Pの キャラを えらんでね'; }
+        if (seats[i] === null) { return 'おなじ キャラは えらべないよ'; }
+      }
+      return '';
+    }
     if (!state.p1) { return '1Pの キャラを えらんでね'; }
     if (!state.p2) { return '2Pの キャラを えらんでね'; }
     if (state.p1 === state.p2) { return 'おなじ キャラは えらべないよ'; }
@@ -126,17 +142,40 @@
 
   function render() {
     var solo = state.mode === 'solo';
-    els.p2Panel.hidden = solo;
+    var four = state.mode === 'four';
+    els.p2Panel.hidden = solo || (four && state.humans < 2);
+    els.p3Panel.hidden = !four || state.humans < 3;
+    els.p4Panel.hidden = !four || state.humans < 4;
+    els.humansPanel.hidden = !four;
+    els.fourCpuRow.hidden = !four || state.humans >= 4;
     els.cpuRow.hidden = !solo;
-    els.levelPanel.hidden = !solo;
-    els.handicapPanel.hidden = solo || !Otc.RuleSets.allowsHandicap(currentRuleSetId());
+    els.levelPanel.hidden = !(solo || (four && state.humans < 4));
+    els.firstPanel.hidden = four;
+    els.rulePanel.hidden = four;
+    els.handicapPanel.hidden = solo || four || !Otc.RuleSets.allowsHandicap(currentRuleSetId());
     els.p1Title.textContent = solo ? 'キャラを えらんでね' : '1P の キャラ';
 
-    ['p1', 'p2'].forEach(function (slot) {
-      var other = slot === 'p1' ? (solo ? null : state.p2) : state.p1;
+    var seatIds = four ? Otc.CharacterManager.fillSeats(humanPicks(), state.humans) : null;
+    els.fourCpuRow.innerHTML = '';
+    if (four) {
+      for (var n = state.humans; n < 4; n += 1) {
+        var seatChar = seatIds[n] ? Otc.CharacterManager.get(seatIds[n]) : null;
+        els.fourCpuRow.appendChild(el('div', 'cpu-name', 'CPU：' + (seatChar ? seatChar.name : '？')));
+      }
+    }
+
+    SEATS.forEach(function (slot, idx) {
+      // Another human seat's pick blocks the card; in solo only the CPU side is separate.
+      var blockers = [];
+      if (four) {
+        SEATS.forEach(function (o, j) { if (j !== idx && j < state.humans && state[o]) { blockers.push(state[o]); } });
+      } else if (!solo) {
+        var otherSlot = slot === 'p1' ? 'p2' : 'p1';
+        if (slot === 'p1' || slot === 'p2') { blockers.push(state[otherSlot]); }
+      }
       Otc.Characters.forEach(function (c) {
         var b = cards[slot][c.id];
-        var blocked = !Otc.CharacterManager.isSelectable(c.id, other);
+        var blocked = !Otc.CharacterManager.isSelectable(c.id, null) || blockers.indexOf(c.id) >= 0;
         b.disabled = blocked;
         b.setAttribute('aria-checked', String(state[slot] === c.id));
         b.setAttribute('aria-label', c.name + (blocked ? '（もうひとりが えらんでいます）' : ''));
@@ -241,11 +280,15 @@
     root.appendChild(buildLogo());
 
     var modePanel = makePanel('だれと あそぶ？');
-    makeChoices(modePanel, 'モード', [['solo', 'ひとりであそぶ'], ['duo', 'ふたりであそぶ']], 'mode', function () {
+    makeChoices(modePanel, 'モード', [['solo', 'ひとりであそぶ'], ['duo', 'ふたりであそぶ'], ['four', '4にんであそぶ']], 'mode', function () {
       if (state.mode === 'duo' && state.p2 === state.p1) { state.p2 = null; }
       if (state.mode === 'solo' && state.p1 && (!state.cpu || state.cpu === state.p1)) { rerollCpu(); }
     });
     root.appendChild(modePanel);
+
+    els.humansPanel = makePanel('にんげんは なんにん？');
+    makeChoices(els.humansPanel, 'にんげんの人数', [[1, '1にん'], [2, '2にん'], [3, '3にん'], [4, '4にん']], 'humans');
+    root.appendChild(els.humansPanel);
 
     var p1Panel = makePanel('');
     els.p1Title = p1Panel.firstChild;
@@ -273,17 +316,32 @@
     els.p2Panel.appendChild(p2Cards);
     root.appendChild(els.p2Panel);
 
-    var firstPanel = makePanel('どっちが さき？');
-    els.firstGroup = makeChoices(firstPanel, '先手', [['p1', ''], ['p2', ''], ['random', '']], 'first');
+    ['p3', 'p4'].forEach(function (slot) {
+      var panel = makePanel(slot.charAt(1) + 'P の キャラ');
+      var grid = el('div', 'cards');
+      grid.setAttribute('role', 'radiogroup');
+      grid.setAttribute('aria-label', slot.charAt(1) + 'Pのキャラ');
+      buildCards(slot, grid);
+      panel.appendChild(grid);
+      els[slot + 'Panel'] = panel;
+      root.appendChild(panel);
+    });
+
+    els.fourCpuRow = el('div', 'panel');
+    root.appendChild(els.fourCpuRow);
+
+    els.firstPanel = makePanel('どっちが さき？');
+    els.firstGroup = makeChoices(els.firstPanel, '先手', [['p1', ''], ['p2', ''], ['random', '']], 'first');
     els.firstNote = el('p', 'panel-note', 'ハンデのときは しろが さきだよ');
-    firstPanel.appendChild(els.firstNote);
-    root.appendChild(firstPanel);
+    els.firstPanel.appendChild(els.firstNote);
+    root.appendChild(els.firstPanel);
 
     els.levelPanel = makePanel('CPUの つよさ');
     makeChoices(els.levelPanel, 'CPUの強さ', LEVELS, 'level');
     root.appendChild(els.levelPanel);
 
     var rulePanel = makePanel('ルール');
+    els.rulePanel = rulePanel;
     makeChoices(rulePanel, '盤の大きさ', [[8, '8x8'], [6, '6x6（ミニ）']], 'boardSize');
     makeChoices(rulePanel, '勝ち方', [['normal', 'ふつう（おおいほうが かち）'], ['anti', 'アンチ（すくないほうが かち）']], 'winRule');
     root.appendChild(rulePanel);
@@ -338,6 +396,14 @@
   }
 
   function readSettings() {
+    if (state.mode === 'four') {
+      var seats = Otc.CharacterManager.fillSeats(humanPicks(), state.humans);
+      return {
+        mode: 'four', humans: state.humans,
+        p1: seats[0], p2: seats[1], p3: seats[2], p4: seats[3],
+        level: state.level, ruleSetId: 'four', assist: state.assist
+      };
+    }
     var solo = state.mode === 'solo';
     var ruleSetId = currentRuleSetId();
     var handicapOk = !solo && Otc.RuleSets.allowsHandicap(ruleSetId);

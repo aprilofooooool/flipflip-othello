@@ -140,6 +140,24 @@
       expect(CM.isSelectable('mametchi', null)).toBe(true);
       expect(CM.isSelectable('nobody', null)).toBe(false);
     });
+    it('fillSeats: humans=1、p1=mametchi → 残り3体がロスター順で CPU', function () {
+      expect(CM.fillSeats(['mametchi', null, null, null], 1)).toEqual(['mametchi', 'kuchipatchi', 'mimitchi', 'flowertchi']);
+      expect(CM.fillSeats(['mimitchi', null, null, null], 1)).toEqual(['mimitchi', 'mametchi', 'kuchipatchi', 'flowertchi']);
+    });
+    it('fillSeats: humans=2 で2席が同じキャラ → 2席目は null', function () {
+      var r = CM.fillSeats(['mametchi', 'mametchi', null, null], 2);
+      expect(r[0]).toBe('mametchi');
+      expect(r[1]).toBe(null);
+      expect(r.length).toBe(4);
+    });
+    it('fillSeats: 不正 id は null、結果に重複なし', function () {
+      var r = CM.fillSeats(['nobody', 'mimitchi', 'mimitchi', null], 3);
+      expect(r.slice(0, 3)).toEqual([null, 'mimitchi', null]);
+      var ids = r.filter(function (x) { return x !== null; });
+      expect(ids.length).toBe(new Set(ids).size);
+      var full = CM.fillSeats(['mametchi', 'kuchipatchi', 'mimitchi', 'flowertchi'], 4);
+      expect(full).toEqual(['mametchi', 'kuchipatchi', 'mimitchi', 'flowertchi']);
+    });
     it('pickCpu: 1000 tries never return excludeId and all other 3 appear', function () {
       var seen = {};
       for (var i = 0; i < 1000; i += 1) {

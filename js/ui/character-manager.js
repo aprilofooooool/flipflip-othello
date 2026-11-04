@@ -35,6 +35,25 @@
     return pool[idx];
   }
 
+  // Human seats keep their pick (invalid or duplicate ids become null); CPU seats take unused characters in roster order.
+  function fillSeats(humanIds, humans) {
+    var seats = [];
+    var used = {};
+    var i;
+    for (i = 0; i < 4; i += 1) {
+      var id = i < humans ? humanIds[i] : null;
+      if (i < humans && get(id) !== null && !used[id]) {
+        used[id] = true;
+        seats.push(id);
+      } else {
+        seats.push(null);
+      }
+    }
+    var free = Otc.Characters.map(function (c) { return c.id; }).filter(function (cid) { return !used[cid]; });
+    for (i = humans; i < 4; i += 1) { seats[i] = free.shift() || null; }
+    return seats;
+  }
+
   // Theme-colored circle with the face for the emotion and the first letter of the name.
   function renderCssDisc(el, char, emotion) {
     var doc = el.ownerDocument;
@@ -84,6 +103,7 @@
     discCandidates: discCandidates,
     isSelectable: isSelectable,
     pickCpu: pickCpu,
+    fillSeats: fillSeats,
     applyImage: applyImage,
     renderCssDisc: renderCssDisc
   };
