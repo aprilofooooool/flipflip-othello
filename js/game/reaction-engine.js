@@ -38,10 +38,17 @@
     if (input.kind === 'pass') {
       mine.push('panic');
     } else {
-      if (input.tookCorner) { mine.push('joy'); theirs.push('anger'); }
+      if (input.tookCorner) {
+        // Anti (misere): a corner is a liability, so the mover panics and the opponent is glad.
+        if (input.misere) { mine.push('panic'); theirs.push('joy'); }
+        else { mine.push('joy'); theirs.push('anger'); }
+      }
       if (input.deltaE >= C.JOY_DELTA) { mine.push('joy'); }
       if (input.deltaE <= -C.PANIC_DELTA) { mine.push('panic'); }
-      if (input.flippedCount >= C.SADNESS_FLIPS) { theirs.push('sadness'); }
+      if (input.flippedCount >= C.SADNESS_FLIPS) {
+        // Anti: flipping many discs hurts the mover, not the opponent.
+        if (input.misere) { mine.push('sadness'); } else { theirs.push('sadness'); }
+      }
       if (-input.deltaE <= -C.PANIC_DELTA) { theirs.push('panic'); }
     }
     out[me] = pick(mine);

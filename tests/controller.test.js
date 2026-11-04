@@ -152,6 +152,45 @@
       expect(sits).toContain('cornerTaken');
       expect(sits).toContain('cornerLost');
     });
+    it('anti で隅を取ると mover に panic、相手に joy、相手のセリフは goodMove', function () {
+      var t = setup({ ruleSetId: 'anti' });
+      var guard = 0;
+      while (events(t.log, 'moved').every(function (m) { return !Otc.Reaction.isCorner(m.index, 8); }) && guard++ < 30) {
+        t.ctrl.play(t.ctrl.getView().legal[0]);
+      }
+      var moved = events(t.log, 'moved');
+      var last = moved[moved.length - 1];
+      expect(Otc.Reaction.isCorner(last.index, 8)).toBe(true);
+      var emotions = events(t.log, 'emotion');
+      expect(emotions.some(function (e) { return e.emotion === 'panic' && e.player === last.mover; })).toBe(true);
+      expect(emotions.some(function (e) { return e.emotion === 'joy' && e.player !== last.mover; })).toBe(true);
+      var sits = events(t.log, 'line').map(function (l) { return l.situation; });
+      expect(sits).toContain('goodMove');
+      expect(sits.indexOf('cornerTaken')).toBe(-1);
+      expect(sits.indexOf('cornerLost')).toBe(-1);
+    });
+    it('anti で大量に返した側の sadness にはセリフを出さない', function () {
+      var t = setup({ ruleSetId: 'anti' });
+      var guard = 0;
+      var big = function () {
+        return events(t.log, 'moved').some(function (m) { return m.flipped.length >= Otc.Const.SADNESS_FLIPS; });
+      };
+      // Always play the legal move that flips the most discs.
+      while (!big() && guard++ < 40) {
+        var v = t.ctrl.getView();
+        var best = v.legal[0];
+        var bestN = -1;
+        v.legal.forEach(function (i) {
+          var n = E.applyMove(v.state, i).flipped.length;
+          if (n > bestN) { bestN = n; best = i; }
+        });
+        t.ctrl.play(best);
+      }
+      expect(big()).toBe(true);
+      var mover = events(t.log, 'moved').filter(function (m) { return m.flipped.length >= Otc.Const.SADNESS_FLIPS; })[0].mover;
+      expect(events(t.log, 'emotion').some(function (e) { return e.emotion === 'sadness' && e.player === mover; })).toBe(true);
+      expect(events(t.log, 'line').map(function (l) { return l.situation; }).indexOf('manyFlipped')).toBe(-1);
+    });
   });
 
   describe('GameController history', function () {

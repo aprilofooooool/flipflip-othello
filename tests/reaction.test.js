@@ -51,6 +51,29 @@
     });
   });
 
+  describe('Reaction.judge (anti)', function () {
+    it('anti: 隅を取った側 panic、相手 joy', function () {
+      var r = mv({ tookCorner: true, misere: true });
+      expect(r[B]).toBe('panic');
+      expect(r[W]).toBe('joy');
+    });
+    it('anti: SADNESS_FLIPS 以上返すと打った側 sadness、相手は null', function () {
+      var r = mv({ flippedCount: C.SADNESS_FLIPS, misere: true });
+      expect(r[B]).toBe('sadness');
+      expect(r[W]).toBe(null);
+      expect(mv({ flippedCount: C.SADNESS_FLIPS - 1, misere: true })[B]).toBe(null);
+    });
+    it('anti: ΔE の規則と強制パスは standard と同じ', function () {
+      var gain = mv({ deltaE: BIG, misere: true });
+      expect(gain[B]).toBe('joy');
+      expect(gain[W]).toBe('panic');
+      expect(mv({ deltaE: -BIG, misere: true })[B]).toBe('panic');
+      var p = R.judge({ mover: W, kind: 'pass', flippedCount: 0, tookCorner: false, deltaE: 0, replay: false, misere: true });
+      expect(p[W]).toBe('panic');
+      expect(p[B]).toBe(null);
+    });
+  });
+
   describe('Reaction helpers', function () {
     it('isCorner', function () {
       expect(R.isCorner(0, 8)).toBeTruthy();

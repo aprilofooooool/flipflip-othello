@@ -207,6 +207,7 @@
     }
 
     function react(input, tookCorner) {
+      var misere = !!input.misere;
       var r = Otc.Reaction.judge(input);
       [BLACK, WHITE].forEach(function (color) {
         var emotion = r[color];
@@ -215,8 +216,8 @@
         bus.emit('emotion', { player: player, emotion: emotion });
         var situation = null;
         if (emotion === 'anger') { situation = 'cornerLost'; }
-        else if (emotion === 'sadness') { situation = 'manyFlipped'; }
-        else if (emotion === 'joy') { situation = tookCorner ? 'cornerTaken' : 'goodMove'; }
+        else if (emotion === 'sadness') { situation = misere ? null : 'manyFlipped'; }
+        else if (emotion === 'joy') { situation = (tookCorner && !misere) ? 'cornerTaken' : 'goodMove'; }
         else if (emotion === 'panic' && input.kind === 'pass') { situation = 'pass'; }
         if (situation) { emotionLine = true; say(player, situation); }
       });
@@ -232,7 +233,8 @@
       bus.emit('moved', { index: index, flipped: res.flipped, mover: playerOf(mover) });
       react({
         mover: mover, kind: 'move', flippedCount: res.flipped.length, tookCorner: tookCorner,
-        deltaE: Otc.Reaction.deltaFor(state, res.state, mover), replay: false
+        deltaE: Otc.Reaction.deltaFor(state, res.state, mover), replay: false,
+        misere: Otc.RuleSets.get(state.ruleSetId).misere
       }, tookCorner);
       emitState();
       save();
