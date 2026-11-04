@@ -37,6 +37,8 @@
     // Game-in-progress save (localStorage key via Otc.Storage) and its format version.
     SAVE_KEY: 'otc.save.v1',
     SAVE_VERSION: 1,
+    // Four-player saves use the same key with this version (two-player saves stay at SAVE_VERSION).
+    FOUR_SAVE_VERSION: 2,
     // Flip animation: delay per Chebyshev distance step from the placed disc (ms).
     FLIP_STAGGER_MS: 70,
     // Wait before the result modal opens so the last flips can finish (ms).

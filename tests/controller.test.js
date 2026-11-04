@@ -849,4 +849,325 @@
       expect(t.ctrl.getView().gameOver.black).toBe(32);
     });
   });
+
+  // ---- 4-player mode ----
+
+  var F = Otc.FourEngine;
+  var SEATS4 = ['p1', 'p2', 'p3', 'p4'];
+  // Seat colours used by the crafted saves below.
+  var COLORS4 = { p1: F.RED, p2: F.WHITE, p3: F.BLACK, p4: F.BLUE };
+
+  function fourSettings(over) {
+    var s = {
+      mode: 'four', humans: 1, p1: 'mametchi', p2: 'kuchipatchi', p3: 'mimitchi', p4: 'flowertchi',
+      level: 'normal', ruleSetId: 'four', assist: false
+    };
+    Object.keys(over || {}).forEach(function (k) { s[k] = over[k]; });
+    return s;
+  }
+
+  function setupFour(over, opts) {
+    var t = makeCtrl(opts);
+    t.ctrl.start(fourSettings(over));
+    return t;
+  }
+
+  function resolveFour(c, index) {
+    c.onDone({ move: index === undefined ? F.legalMoves(c.state)[0] : index });
+  }
+
+  function cpuReplyFour(t) {
+    resolveFour(lastOf(t.ai.cpuCalls()));
+    t.sched.advance(C.CPU_MIN_WAIT_MS[1]);
+  }
+
+  // One step of a game: pass, CPU reply, or the human's first legal move.
+  function fourStep(t) {
+    var v = t.ctrl.getView();
+    if (v.gameOver) { return; }
+    if (v.legal.length === 0) { t.ctrl.skipPass(); } else if (v.isCpuTurn) { cpuReplyFour(t); } else { t.ctrl.play(v.legal[0]); }
+  }
+
+  // Runs CPU turns and passes until a human seat can move.
+  function untilHuman(t) {
+    var guard = 0;
+    for (;;) {
+      var v = t.ctrl.getView();
+      if (v.gameOver || (!v.isCpuTurn && v.legal.length > 0) || guard++ > 50) { return v; }
+      fourStep(t);
+    }
+  }
+
+  function plainState(s) {
+    return Object.assign({}, s, {
+      cells: Array.from(s.cells),
+      guards: s.guards.map(function (g) { return { index: g.index, owner: g.owner }; })
+    });
+  }
+
+  function fourSaveData(state, over, colors) {
+    return {
+      version: C.FOUR_SAVE_VERSION, settings: fourSettings(over), colors: Object.assign({}, colors || COLORS4),
+      history: [plainState(state)], cursor: 0
+    };
+  }
+
+  function storeOf(data) {
+    var init = {};
+    init[C.SAVE_KEY] = JSON.stringify(data);
+    return createMemStorage(init);
+  }
+
+  // RED (p1) has no discs and is to move: a rescue turn.
+  function rescueState() {
+    return F.stateFromRows(['........', '........', '........', '...wk...', '...bk...', '........', '........', '........'], F.RED);
+  }
+
+  describe('GameController four', function () {
+    it('4席に4色が重複なく割り当たり、手番は ORDER で回る', function () {
+      var t = setupFour({ humans: 4 });
+      var v = t.ctrl.getView();
+      expect(v.seats).toEqual(SEATS4);
+      expect(v.humans).toBe(4);
+      expect(SEATS4.map(function (p) { return v.colors[p]; }).sort()).toEqual([1, 2, 3, 4]);
+      expect(v.counts).toEqual({ p1: 2, p2: 2, p3: 2, p4: 2, empty: 56 });
+      expect(v.rescue).toBe(false);
+      expect(v.guards).toEqual([]);
+      expect(v.gameOver).toBe(null);
+      expect(events(t.log, 'line').map(function (l) { return l.player + ':' + l.situation; }))
+        .toEqual(['p1:gameStart', 'p2:gameStart', 'p3:gameStart', 'p4:gameStart']);
+      for (var i = 0; i < 8; i++) {
+        var before = t.ctrl.getView();
+        expect(before.colors[before.turnPlayer]).toBe(before.state.turn);
+        expect(t.ctrl.play(before.legal[0])).toBe(true);
+        expect(t.ctrl.getView().state.turn).toBe(F.nextColor(before.state.turn));
+        expect(lastOf(events(t.log, 'moved')).mover).toBe(before.turnPlayer);
+      }
+    });
+    it('humans=1: p2〜p4 は CPU が打つ（fake scheduler を進めると手番が人間に戻る）', function () {
+      var t = setupFour({ humans: 1 });
+      for (var round = 0; round < 2; round++) {
+        var v = untilHuman(t);
+        expect(v.turnPlayer).toBe('p1');
+        expect(v.isCpuTurn).toBe(false);
+        expect(t.ctrl.play(v.legal[0])).toBe(true);
+        var cpuTurn = t.ctrl.getView();
+        expect(cpuTurn.isCpuTurn).toBe(true);
+        expect(cpuTurn.busy).toBe(true);
+        expect(t.ctrl.play(cpuTurn.legal[0])).toBe(false);
+      }
+      var movers = events(t.log, 'moved').map(function (m) { return m.mover; });
+      expect(movers.filter(function (p) { return p === 'p1'; }).length).toBe(2);
+      expect(t.ai.cpuCalls().length).toBeGreaterThanOrEqual(3);
+      expect(t.ai.cpuCalls()[0].level).toBe('normal');
+    });
+    it('humans=4: CPU は打たない', function () {
+      var t = setupFour({ humans: 4 });
+      for (var i = 0; i < 12; i++) {
+        expect(t.ctrl.getView().isCpuTurn).toBe(false);
+        fourStep(t);
+      }
+      expect(t.ai.cpuCalls().length).toBe(0);
+      expect(t.ctrl.getView().busy).toBe(false);
+    });
+    it('人間の席が全滅すると view.rescue が true、legal は救済マス、assist は救済マスを示す', function () {
+      var t = makeCtrl({ storage: storeOf(fourSaveData(rescueState(), { humans: 1, assist: true })), ai: Otc.FourAI });
+      expect(t.ctrl.restore()).toBe(true);
+      var v = t.ctrl.getView();
+      expect(v.turnPlayer).toBe('p1');
+      expect(v.rescue).toBe(true);
+      expect(v.legal).toEqual(F.legalMoves(rescueState()));
+      expect(v.legal.length).toBeGreaterThanOrEqual(1);
+      t.sched.advance(0);
+      var hint = lastOf(events(t.log, 'assist'));
+      expect(v.legal).toContain(hint.index);
+      expect(t.ctrl.play(v.legal[0])).toBe(true);
+      var after = t.ctrl.getView();
+      expect(after.rescue).toBe(false);
+      expect(after.guards).toEqual([{ index: v.legal[0], owner: 'p1' }]);
+    });
+    it('石が全滅した席に panic（wiped）', function () {
+      // p2 (WHITE) at a1 flips b1, the only RED (p1) disc.
+      var rows = ['.rw.....', '........', '........', '...kb...', '........', '........', '........', '........'];
+      var t = makeCtrl({ storage: storeOf(fourSaveData(F.stateFromRows(rows, F.WHITE), { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      expect(t.ctrl.play(0)).toBe(true);
+      var p1 = events(t.log, 'emotion').filter(function (e) { return e.player === 'p1'; });
+      expect(p1).toEqual([{ player: 'p1', emotion: 'panic' }]);
+    });
+    it('終局: gameover の winners / ranks、1位 joy＋win、他は sadness＋lose', function () {
+      var rows = ['.wrrrrrr', 'rrrrrrrr', 'rrrrwwww', 'wwwwwwww', 'wwwwwwww', 'kkkkkkkk', 'kkkkkkbb', 'bbbbbbbb'];
+      var t = makeCtrl({ storage: storeOf(fourSaveData(F.stateFromRows(rows, F.RED), { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      expect(t.ctrl.play(0)).toBe(true);
+      var over = events(t.log, 'gameover');
+      expect(over.length).toBe(1);
+      expect(over[0].winner).toBe(null);
+      expect(over[0].winners).toEqual(['p1', 'p2']);
+      expect(over[0].ranks).toEqual({ p1: 1, p2: 1, p3: 3, p4: 4 });
+      expect(over[0].replay).toBe(false);
+      expect(over[0].result.counts).toEqual({ 1: 14, 2: 20, 3: 20, 4: 10 });
+      expect(events(t.log, 'emotion').slice(-4)).toEqual([
+        { player: 'p1', emotion: 'joy' }, { player: 'p2', emotion: 'joy' },
+        { player: 'p3', emotion: 'sadness' }, { player: 'p4', emotion: 'sadness' }
+      ]);
+      expect(events(t.log, 'line').slice(-4).map(function (l) { return l.player + ':' + l.situation; }))
+        .toEqual(['p1:win', 'p2:win', 'p3:lose', 'p4:lose']);
+      var v = t.ctrl.getView();
+      expect(v.gameOver.winners).toEqual([F.RED, F.WHITE]);
+      expect(v.legal).toEqual([]);
+      expect(Otc.GameController.hasSave(t.storage)).toBe(false);
+    });
+    it('winning/losing は評価の1位・最下位にだけ、ADVANTAGE_EVAL 以上の差で、席ごとのクールダウン付き', function () {
+      var t = setupFour({ humans: 4 });
+      var guard = 0;
+      while (!t.ctrl.getView().gameOver && guard++ < 300) { fourStep(t); }
+      expect(events(t.log, 'gameover').length).toBe(1);
+      var limit = Otc.Reaction.threshold('four', 'ADVANTAGE_EVAL');
+      var state = null;
+      var adv = [];
+      t.log.forEach(function (e) {
+        if (e.type === 'state') { state = e.payload.state; }
+        if (e.type !== 'line' || (e.payload.situation !== 'winning' && e.payload.situation !== 'losing')) { return; }
+        var colors = t.ctrl.getView().colors;
+        var scores = SEATS4.map(function (p) { return Otc.FourAI.scoreFor(state, colors[p]); }).sort(function (a, b) { return b - a; });
+        var mine = Otc.FourAI.scoreFor(state, colors[e.payload.player]);
+        if (e.payload.situation === 'winning') {
+          expect(mine).toBe(scores[0]);
+          expect(scores[0] - scores[1]).toBeGreaterThanOrEqual(limit);
+        } else {
+          expect(mine).toBe(scores[3]);
+          expect(scores[2] - scores[3]).toBeGreaterThanOrEqual(limit);
+        }
+        adv.push({ player: e.payload.player, moveNo: state.moveNo });
+      });
+      expect(adv.length).toBeGreaterThanOrEqual(2);
+      SEATS4.forEach(function (p) {
+        var mine = adv.filter(function (a) { return a.player === p; });
+        for (var i = 1; i < mine.length; i++) {
+          expect(mine[i].moveNo - mine[i - 1].moveNo).toBeGreaterThanOrEqual(C.ADVANTAGE_COOLDOWN_MOVES);
+        }
+      });
+    });
+    it('humans=1 の Undo: CPU の手をまとめて戻し人間の打てる局面に止まる', function () {
+      var t = setupFour({ humans: 1 });
+      var first = untilHuman(t).state.moveNo;
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      var second = untilHuman(t).state.moveNo;
+      expect(second - first).toBeGreaterThanOrEqual(4);
+      var calls = t.ai.cpuCalls().length;
+      expect(t.ctrl.undo()).toBe(true);
+      var v = t.ctrl.getView();
+      expect(v.state.moveNo).toBe(first);
+      expect(v.turnPlayer).toBe('p1');
+      expect(v.busy).toBe(false);
+      expect(t.ctrl.redo()).toBe(true);
+      expect(t.ctrl.getView().state.moveNo).toBe(second);
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.undo()).toBe(true);
+      var start = t.ctrl.getView();
+      expect(start.state.moveNo).toBe(0);
+      expect(start.isCpuTurn).toBe(first > 0);
+      expect(t.ai.cpuCalls().length).toBe(calls + (first > 0 ? 1 : 0));
+    });
+    it('humans=2 の Undo: 直前の人間の番に戻る', function () {
+      var t = setupFour({ humans: 2 });
+      var stops = [];
+      for (var i = 0; i < 4; i++) {
+        var v = untilHuman(t);
+        stops.push({ moveNo: v.state.moveNo, player: v.turnPlayer });
+        t.ctrl.play(v.legal[0]);
+      }
+      untilHuman(t);
+      expect(stops.some(function (s) { return s.player === 'p1'; })).toBe(true);
+      expect(stops.some(function (s) { return s.player === 'p2'; })).toBe(true);
+      for (var k = stops.length - 1; k >= 0; k--) {
+        expect(t.ctrl.undo()).toBe(true);
+        var u = t.ctrl.getView();
+        expect(u.state.moveNo).toBe(stops[k].moveNo);
+        expect(u.turnPlayer).toBe(stops[k].player);
+      }
+    });
+    it('Undo/Redo で守り（guards）が局面どおり', function () {
+      var t = makeCtrl({ storage: storeOf(fourSaveData(rescueState(), { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      var idx = t.ctrl.getView().legal[0];
+      t.ctrl.play(idx);
+      var g = [{ index: idx, owner: 'p1' }];
+      expect(t.ctrl.getView().guards).toEqual(g);
+      fourStep(t);
+      expect(t.ctrl.getView().guards).toEqual(g);
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.getView().guards).toEqual(g);
+      expect(t.ctrl.undo()).toBe(true);
+      expect(t.ctrl.getView().guards).toEqual([]);
+      expect(t.ctrl.getView().rescue).toBe(true);
+      expect(t.ctrl.redo()).toBe(true);
+      expect(t.ctrl.getView().guards).toEqual(g);
+      expect(t.ctrl.getView().state.guards).toEqual([{ index: idx, owner: F.RED }]);
+    });
+    it('救済直後に保存→restore で guards・手番・colors が戻る', function () {
+      var t = makeCtrl({ storage: storeOf(fourSaveData(rescueState(), { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      var saved = JSON.parse(t.storage.data[C.SAVE_KEY]);
+      expect(saved.version).toBe(2);
+      expect(saved.colors).toEqual(COLORS4);
+      expect(saved.cursor).toBe(1);
+      expect(Array.isArray(saved.history[1].cells)).toBe(true);
+      expect(saved.history[1].guards.length).toBe(1);
+      expect(Otc.GameController.hasSave(t.storage)).toBe(true);
+      var t2 = makeCtrl({ storage: t.storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      var a = t.ctrl.getView();
+      var b = t2.ctrl.getView();
+      expect(b.state).toEqual(a.state);
+      expect(b.guards).toEqual(a.guards);
+      expect(b.turnPlayer).toBe(a.turnPlayer);
+      expect(b.colors).toEqual(COLORS4);
+      expect(t2.ctrl.getSettings().mode).toBe('four');
+      expect(t2.ctrl.undo()).toBe(true);
+      expect(t2.ctrl.getView().rescue).toBe(true);
+    });
+    it('version 1 の2人用の保存は今までどおり restore できる', function () {
+      var t = setupSolo({ mode: 'duo' });
+      t.ctrl.play(t.ctrl.getView().legal[0]);
+      expect(JSON.parse(t.storage.data[C.SAVE_KEY]).version).toBe(1);
+      expect(Otc.GameController.hasSave(t.storage)).toBe(true);
+      var t2 = makeCtrl({ storage: t.storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      var v = t2.ctrl.getView();
+      expect(v.state).toEqual(t.ctrl.getView().state);
+      expect(v.colors).toEqual({ p1: E.BLACK, p2: E.WHITE });
+      expect(v.seats).toEqual(['p1', 'p2']);
+    });
+    it('four の保存で色が重複・turn が範囲外・version 1 に four → restore は false（例外なし）', function () {
+      var bad = [
+        function (d) { d.colors.p2 = d.colors.p1; },
+        function (d) { d.history[0].turn = 5; },
+        function (d) { d.version = 1; },
+        function (d) { d.settings.mode = 'duo'; },
+        function (d) { d.history[0].guards = [{ index: 64, owner: 1 }]; },
+        function (d) { d.history[0].guards = [{ index: 3, owner: 0 }]; },
+        function (d) { d.history[0].guards = null; },
+        function (d) { d.history[0].ruleSetId = 'standard'; },
+        function (d) { d.history[0].cells = d.history[0].cells.slice(1); }
+      ];
+      bad.forEach(function (patch) {
+        var data = fourSaveData(rescueState(), { humans: 4 });
+        patch(data);
+        var t = makeCtrl({ storage: storeOf(data) });
+        expect(t.ctrl.restore()).toBe(false);
+        expect(t.storage.data[C.SAVE_KEY]).toBe(undefined);
+      });
+      // A two-player (version 1) save whose positions claim the four rule set is dropped too.
+      var v1 = setupSolo({ mode: 'duo' });
+      v1.ctrl.play(v1.ctrl.getView().legal[0]);
+      var d1 = JSON.parse(v1.storage.data[C.SAVE_KEY]);
+      d1.history = d1.history.map(function (h) { return Object.assign({}, h, { ruleSetId: 'four' }); });
+      expect(makeCtrl({ storage: storeOf(d1) }).ctrl.restore()).toBe(false);
+      var ok = makeCtrl({ storage: storeOf(fourSaveData(rescueState(), { humans: 4 })) });
+      expect(ok.ctrl.restore()).toBe(true);
+    });
+  });
 })(window.Otc);
