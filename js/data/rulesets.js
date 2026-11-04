@@ -21,24 +21,56 @@
     return Otc.Const.HANDICAP_CORNER_ORDER.map(function (k) { return pos[k]; });
   }
 
-  var standard = {
-    id: 'standard',
-    label: 'ふつうのルール',
-    size: 8,
-    initialDiscs: initialDiscs,
-    handicapCorners: handicapCorners,
-    firstTurn: function (handicapLevel) { return handicapLevel > 0 ? WHITE : BLACK; }
-  };
+  // misere: the side with fewer discs wins (anti othello).
+  function make(id, label, size, misere) {
+    var rs = {
+      id: id,
+      label: label,
+      size: size,
+      misere: misere,
+      initialDiscs: initialDiscs,
+      handicapCorners: handicapCorners,
+      firstTurn: function (handicapLevel) { return handicapLevel > 0 ? WHITE : BLACK; }
+    };
+    if (misere) {
+      // Empty squares are not added to anyone. The Engine is read at call time (it loads after this file).
+      rs.result = function (state) {
+        var n = Otc.Engine.countDiscs(state);
+        var winner = n.black < n.white ? BLACK : (n.black > n.white ? WHITE : 0);
+        return { winner: winner, black: n.black, white: n.white };
+      };
+    }
+    return rs;
+  }
 
-  var list = [standard];
+  var list = [
+    make('standard', 'ふつうのルール', 8, false),
+    make('anti', '8x8・アンチ', 8, true),
+    make('mini', '6x6・ふつう', 6, false),
+    make('mini-anti', '6x6・アンチ', 6, true)
+  ];
+
+  function find(id) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) { return list[i]; }
+    }
+    return null;
+  }
 
   Otc.RuleSets = {
     list: list,
+    find: find,
     get: function (id) {
-      for (var i = 0; i < list.length; i++) {
-        if (list[i].id === id) { return list[i]; }
-      }
-      throw new Error('Unknown rule set: ' + id);
-    }
+      var rs = find(id);
+      if (!rs) { throw new Error('Unknown rule set: ' + id); }
+      return rs;
+    },
+    idFor: function (size, winRule) {
+      var anti = winRule === 'anti';
+      if (size === 6) { return anti ? 'mini-anti' : 'mini'; }
+      return anti && size === 8 ? 'anti' : 'standard';
+    },
+    // Handicap corners are only defined for the standard rule.
+    allowsHandicap: function (id) { return id === 'standard'; }
   };
 })(window.Otc);

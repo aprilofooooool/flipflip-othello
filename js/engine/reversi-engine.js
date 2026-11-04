@@ -40,7 +40,7 @@
   }
 
   // Test helper: rows[r] char c is cell (r, c); 'B' black, 'W' white, anything else empty.
-  function stateFromRows(rows, turn) {
+  function stateFromRows(rows, turn, ruleSetId) {
     var size = rows.length;
     var cells = new Int8Array(size * size);
     rows.forEach(function (row, r) {
@@ -49,7 +49,7 @@
         cells[r * size + c] = ch === 'B' ? BLACK : (ch === 'W' ? WHITE : EMPTY);
       }
     });
-    return makeState(size, cells, turn, false, { level: 0, receiver: null }, 0, null, 'standard');
+    return makeState(size, cells, turn, false, { level: 0, receiver: null }, 0, null, ruleSetId || 'standard');
   }
 
   function flipsFor(state, index) {

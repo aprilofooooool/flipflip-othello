@@ -183,4 +183,44 @@
       expect(function () { E.applyPass(s); }).toThrow();
     });
   });
+  describe('RuleSets variants', function () {
+    function rowsWith(b, w) {
+      var rows = emptyRows(8);
+      for (var i = 0; i < b + w; i++) { put(rows, Math.floor(i / 8), i % 8, i < b ? 'B' : 'W'); }
+      return rows;
+    }
+    it('mini の初期局面: c3/d4=白, d3/c4=黒、黒の合法手は 4 つ', function () {
+      var s = E.createInitialState(Otc.RuleSets.get('mini'));
+      expect(s.size).toBe(6);
+      expect(s.cells[E.toIndex('c3', 6)]).toBe(E.WHITE);
+      expect(s.cells[E.toIndex('d4', 6)]).toBe(E.WHITE);
+      expect(s.cells[E.toIndex('d3', 6)]).toBe(E.BLACK);
+      expect(s.cells[E.toIndex('c4', 6)]).toBe(E.BLACK);
+      expect(E.legalMoves(s).length).toBe(4);
+    });
+    it('anti の result: 少ない方が勝ち、同数は 0、空きは足さない', function () {
+      var s = E.stateFromRows(rowsWith(10, 20), E.BLACK, 'anti');
+      expect(E.result(s)).toEqual({ winner: E.BLACK, black: 10, white: 20 });
+      expect(E.result(E.stateFromRows(rowsWith(20, 10), E.BLACK, 'anti')).winner).toBe(E.WHITE);
+      expect(E.result(E.stateFromRows(rowsWith(15, 15), E.BLACK, 'anti')).winner).toBe(0);
+    });
+    it('anti で片方全滅: 0個の側が勝ち', function () {
+      var s = E.stateFromRows(rowsWith(0, 5), E.BLACK, 'anti');
+      expect(E.result(s).winner).toBe(E.BLACK);
+    });
+    it('idFor / allowsHandicap / find', function () {
+      var R = Otc.RuleSets;
+      expect(R.idFor(6, 'anti')).toBe('mini-anti');
+      expect(R.idFor(6, 'normal')).toBe('mini');
+      expect(R.idFor(8, 'anti')).toBe('anti');
+      expect(R.idFor(8, 'normal')).toBe('standard');
+      expect(R.idFor(7, 'x')).toBe('standard');
+      expect(R.allowsHandicap('standard')).toBe(true);
+      expect(R.allowsHandicap('mini')).toBe(false);
+      expect(R.allowsHandicap('anti')).toBe(false);
+      expect(R.find('nope')).toBe(null);
+      expect(R.find('mini').size).toBe(6);
+      expect(function () { R.get('nope'); }).toThrow();
+    });
+  });
 })(window.Otc);

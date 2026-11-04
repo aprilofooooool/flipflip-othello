@@ -82,6 +82,12 @@
       expect(v.turnPlayer).toBe('p1');
       expect(v.counts.p2).toBe(4);
     });
+    it('ハンデ 2 でも mini で開始するとハンデ 0、黒から打つ', function () {
+      var v = setup({ ruleSetId: 'mini', handicapLevel: 2, handicapReceiver: 'p2' }).ctrl.getView();
+      expect(v.state.handicap.level).toBe(0);
+      expect(v.state.turn).toBe(E.BLACK);
+      expect(v.counts).toEqual({ p1: 2, p2: 2, empty: 32 });
+    });
     it('random first uses rng', function () {
       // rng() = 0.5 is not below 0.5, so p2 gets BLACK.
       expect(setup({ first: 'random' }).ctrl.getView().colors.p2).toBe(E.BLACK);
@@ -715,6 +721,27 @@
       var badCursor = {};
       badCursor[C.SAVE_KEY] = JSON.stringify(data);
       expect(makeCtrl({ storage: createMemStorage(badCursor) }).ctrl.restore()).toBe(false);
+    });
+    it('mini-anti で始めて保存→restore で同じ ruleSetId・size で再開', function () {
+      var t = setupSolo({ ruleSetId: 'mini-anti' });
+      expect(t.ctrl.getView().state.size).toBe(6);
+      soloPlayFirstLegal(t, 2);
+      var t2 = makeCtrl({ storage: t.storage });
+      expect(t2.ctrl.restore()).toBe(true);
+      expect(t2.ctrl.getView().state.ruleSetId).toBe('mini-anti');
+      expect(t2.ctrl.getView().state.size).toBe(6);
+    });
+    it('保存データの ruleSetId が未知、または size が RuleSet と不一致なら restore は null（例外なし）', function () {
+      var good = setupSolo({ ruleSetId: 'mini' });
+      good.ctrl.play(good.ctrl.getView().legal[0]);
+      [{ ruleSetId: 'nope' }, { size: 8 }].forEach(function (patch) {
+        var data = JSON.parse(good.storage.data[C.SAVE_KEY]);
+        data.history = data.history.map(function (h) { return Object.assign({}, h, patch); });
+        var init = {};
+        init[C.SAVE_KEY] = JSON.stringify(data);
+        var t = makeCtrl({ storage: createMemStorage(init) });
+        expect(t.ctrl.restore()).toBe(false);
+      });
     });
     it('storage が例外を投げても start/play が動く', function () {
       var st = Object.create(Otc.Storage);

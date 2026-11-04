@@ -100,7 +100,9 @@
       for (var i = 0; i < data.history.length; i++) {
         var s = data.history[i];
         if (!s || typeof s.size !== 'number' || !Array.isArray(s.cells) || s.cells.length !== s.size * s.size ||
-          (s.turn !== BLACK && s.turn !== WHITE) || !Otc.RuleSets.get(s.ruleSetId)) { return null; }
+          (s.turn !== BLACK && s.turn !== WHITE)) { return null; }
+        var rs = Otc.RuleSets.find(s.ruleSetId);
+        if (!rs || rs.size !== s.size) { return null; }
         out.push(Object.freeze(Object.assign({}, s, { cells: Int8Array.from(s.cells) })));
       }
       return out;
@@ -354,7 +356,7 @@
       clearSave(storage);
       settings = s;
       var ruleSet = Otc.RuleSets.get(s.ruleSetId || 'standard');
-      var level = s.handicapLevel || 0;
+      var level = Otc.RuleSets.allowsHandicap(ruleSet.id) ? (s.handicapLevel || 0) : 0;
       var blackSide;
       if (level > 0) { blackSide = s.handicapReceiver; }
       else if (s.first === 'random') { blackSide = rng() < 0.5 ? 'p1' : 'p2'; }
