@@ -58,7 +58,7 @@
   // Thresholds measured by tests/tools/measure-four.js (.claude/docs/reports/2026-11-05-four-player-measure.md).
   var four = {
     id: 'four', label: '4にん', size: 8, misere: false, players: 4,
-    thresholds: { JOY_DELTA: 95, PANIC_DELTA: 50, ADVANTAGE_EVAL: 95 }
+    thresholds: { JOY_DELTA: 95, PANIC_DELTA: 50, ADVANTAGE_EVAL: 95, SADNESS_FLIPS: 4 }
   };
 
   function find(id) {

@@ -24,8 +24,14 @@
     // and the evaluation-change thresholds for joy / panic (measured, see .claude/docs/reports/2026-10-29-delta-threshold.md).
     REACTION_SEARCH_DEPTH: 2,
     SADNESS_FLIPS: 5,
-    JOY_DELTA: 197,
+    // JOY_DELTA 120: top 10% of the easy seat's moves (design 2026-11-05 section 4).
+    JOY_DELTA: 120,
     PANIC_DELTA: 331,
+    // Weights of the emotion picked for a hurt reason (weighted random, see Otc.Reaction.emotionOf).
+    HURT_WEIGHTS: {
+      cornerLost: { anger: 50, sadness: 25, panic: 25 },
+      manyFlipped: { anger: 25, sadness: 50, panic: 25 }
+    },
     // How long a forced pass stays on screen before the turn changes (ms).
     PASS_DISPLAY_MS: 1500,
     // Speech bubble: maximum characters per line (counted with Array.from).
@@ -50,7 +56,7 @@
     // Chance of a turnStart line at a human turn start when the move gave no emotion line.
     TURN_LINE_RATE: 0.3,
     // winning / losing line: AI.scoreFor(state, color, 1) above +ADVANTAGE_EVAL / below -ADVANTAGE_EVAL.
-    // Starts at the JOY_DELTA value. At most once per player every ADVANTAGE_COOLDOWN_MOVES moves.
+    // 197 = the former JOY_DELTA value (kept on purpose). At most once per player every ADVANTAGE_COOLDOWN_MOVES moves.
     ADVANTAGE_EVAL: 197,
     ADVANTAGE_COOLDOWN_MOVES: 6,
     // Emotion effects: effect length, how long the emotion image stays after it, speech bubble length (ms),

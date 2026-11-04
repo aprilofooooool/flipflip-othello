@@ -33,8 +33,8 @@
     return F.legalMoves(probe).length;
   }
 
-  // Value of the position for `color`, from `color`'s own discs, corners and moves only.
-  function evaluate(state, color) {
+  // Value of the discs for `color`: own discs, positions and corners only (no mobility).
+  function material(state, color) {
     var w = positionTable();
     var cells = state.cells;
     var discs = 0;
@@ -44,7 +44,14 @@
     }
     var corners = 0;
     for (var k = 0; k < CORNERS.length; k++) { if (cells[CORNERS[k]] === color) { corners++; } }
-    return W_DISC * discs + W_POS * pos + W_CORNER * corners + W_MOBILITY * mobilityOf(state, color, discs);
+    return W_DISC * discs + W_POS * pos + W_CORNER * corners;
+  }
+
+  // Value of the position for `color`: material plus its own legal moves.
+  function evaluate(state, color) {
+    var discs = 0;
+    for (var i = 0; i < state.cells.length; i++) { if (state.cells[i] === color) { discs++; } }
+    return material(state, color) + W_MOBILITY * mobilityOf(state, color, discs);
   }
 
   function evalVector(state) {
@@ -222,6 +229,7 @@
 
   Otc.FourAI = {
     evaluate: evaluate,
+    material: material,
     scoreFor: evaluate,
     chooseMoveSync: chooseMoveSync,
     search: search

@@ -235,6 +235,14 @@
       expect(AI.scoreFor(a, F.BLACK)).toBe(AI.evaluate(a, F.BLACK));
     });
 
+    it('material: evaluate - material は 5 * 置ける数', function () {
+      var s = F.createInitialState();
+      F.ORDER.forEach(function (c) {
+        var probe = { size: s.size, cells: s.cells, turn: c, guards: s.guards.filter(function (g) { return g.owner !== c; }) };
+        expect(AI.evaluate(s, c) - AI.material(s, c)).toBe(5 * F.legalMoves(probe).length);
+      });
+    });
+
     it('1手で取れる隅を normal は取る', function () {
       var s = F.stateFromRows(board({ b1: 'r', c1: 'k', d5: 'k', e5: 'w' }), F.BLACK);
       expect(F.legalMoves(s).indexOf(idx('a1')) >= 0).toBe(true);
