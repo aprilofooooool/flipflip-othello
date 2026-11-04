@@ -1073,6 +1073,22 @@
       expect(['anger', 'sadness', 'panic']).toContain(p1[0].payload.emotion);
       expect(after.some(function (e) { return e.type === 'line' && e.payload.player === 'p1' && e.payload.situation === 'manyFlipped'; })).toBe(true);
     });
+    it('少ない石でも価値の高い石を返された席に panic（danger）、セリフなし、打った席は panic にならない', function () {
+      // p2 (WHITE) at b1 flips c1..e1, 3 edge RED (p1) discs; p1 keeps one more disc at d6.
+      var rows = ['..rrrw..', '........', '........', '...kb...', '........', '...r....', '........', '........'];
+      var st = F.stateFromRows(rows, F.WHITE);
+      var t = makeCtrl({ storage: storeOf(fourSaveData(st, { humans: 4 })) });
+      expect(t.ctrl.restore()).toBe(true);
+      expect(Otc.Reaction.lossesFour(st, F.applyMove(st, 1).state)[F.RED]).toBeGreaterThanOrEqual(Otc.Reaction.threshold('four', 'PANIC_DELTA'));
+      expect(F.applyMove(st, 1).flipped.length < Otc.Reaction.threshold('four', 'SADNESS_FLIPS')).toBe(true);
+      var from = t.log.length;
+      expect(t.ctrl.play(1)).toBe(true);
+      var after = t.log.slice(from);
+      var emo = after.filter(function (e) { return e.type === 'emotion'; }).map(function (e) { return e.payload; });
+      expect(emo.filter(function (e) { return e.player === 'p1'; })).toEqual([{ player: 'p1', emotion: 'panic' }]);
+      expect(emo.some(function (e) { return e.player === 'p2' && e.emotion === 'panic'; })).toBe(false);
+      expect(after.some(function (e) { return e.type === 'line' && e.payload.player === 'p1'; })).toBe(false);
+    });
     it('終局: gameover の winners / ranks、1位 joy＋win、他は sadness＋lose', function () {
       var rows = ['.wrrrrrr', 'rrrrrrrr', 'rrrrwwww', 'wwwwwwww', 'wwwwwwww', 'kkkkkkkk', 'kkkkkkbb', 'bbbbbbbb'];
       var t = makeCtrl({ storage: storeOf(fourSaveData(F.stateFromRows(rows, F.RED), { humans: 4 })) });

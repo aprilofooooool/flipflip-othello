@@ -303,11 +303,11 @@
     }
 
     // Emits the emotion of every seat that has a reason and says the reason's line (LINE_OF). `reasons`: { color: reason|null }.
-    function showReasons(reasons, seatOf) {
+    function showReasons(reasons) {
       Object.keys(reasons).forEach(function (color) {
         var reason = reasons[color];
         if (!reason) { return; }
-        var player = seatOf(Number(color));
+        var player = playerOf(Number(color));
         var emotion = Otc.Reaction.emotionOf(reason, recent[player], rng);
         if (!emotion) { return; }
         recent[player] = recent[player].concat(emotion).slice(-2);
@@ -318,14 +318,14 @@
     }
 
     function react(input) {
-      showReasons(Otc.Reaction.reasons(input), playerOf);
+      showReasons(Otc.Reaction.reasons(input));
     }
 
     // ---- four-player helpers (reactions, game over, winning/losing lines, start colours) ----
 
     // input: the Otc.Reaction.reasonsFour input.
     function reactFour(input) {
-      showReasons(Otc.Reaction.reasonsFour(input), playerOf);
+      showReasons(Otc.Reaction.reasonsFour(input));
     }
 
     // Colours that had discs before the move and have none after it.
