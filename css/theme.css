@@ -30,6 +30,11 @@
   --board-line: #ffffff;
   --disc-black: #3a2f5a;
   --disc-white: #ffffff;
+  /* Four-player disc colours (white gets a dark outline on the board) */
+  --c-black: #2b2b2b;
+  --c-white: #ffffff;
+  --c-red: #e53935;
+  --c-blue: #1e63d6;
 
   --board-edge: #5fc9a0;
   --legal-dot: rgba(58, 47, 90, 0.4);
@@ -85,6 +90,8 @@
   --avatar-size: 64px;
   --disc-inset: 8%;
   --disc-ring: 3px;
+  --disc-ring-four: 4px;
+  --avatar-four: 52px;
   --flip-perspective: 500px;
   --pass-banner-w: 80%;
 

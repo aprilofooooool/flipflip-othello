@@ -156,8 +156,9 @@ html.fx-shaking, html.fx-shaking body { overflow: hidden; }
   transition: opacity var(--fx-bubble-fade) ease;
 }
 .bubble.fx-out { opacity: 0; }
-/* The 2P help button sits over the right end of the 2P panel: keep bubble text clear of it. */
-.side-p2 .bubble { margin-right: var(--help-reserve); }
+/* The 2P help button sits over the right end of the 2P panel: keep bubble text clear of it (two-player only;
+   in four mode the help button is not on a panel). */
+.game:not(.four) .side-p2 .bubble { margin-right: var(--help-reserve); }
 .bubble::before {
   content: "";
   position: absolute;

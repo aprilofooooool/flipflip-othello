@@ -272,3 +272,125 @@
 }
 
 .modal .result-rule { text-align: center; font-size: 1rem; font-weight: 800; color: var(--ink-sub); margin: -8px 0 16px; }
+
+/* ---------------------------------------------------------------- four-player mode (.game.four)
+   Places in turn order, clockwise: RED = tl, WHITE = tr, BLACK = br, BLUE = bl.
+   Portrait: two half-width panels above and below the board (same --panel-h), help button as the 7th control. */
+.game.four {
+  --avatar-size: var(--avatar-four);
+  grid-template-columns: repeat(2, calc((var(--board-size) - var(--gap)) / 2));
+  grid-template-areas: "tl tr" "board board" "bl br" "controls controls";
+}
+.game.four .pos-tl { grid-area: tl; }
+.game.four .pos-tr { grid-area: tr; }
+.game.four .pos-br { grid-area: br; }
+.game.four .pos-bl { grid-area: bl; }
+.game.four .char-panel { gap: 6px; padding: 4px 6px; }
+.game.four .panel-info { flex: 1; min-width: 0; gap: 1px; }
+.game.four .panel-tag { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; white-space: nowrap; }
+.game.four .panel-name { max-width: 100%; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; }
+.game.four .panel-row { display: flex; align-items: center; gap: 4px; }
+.game.four .panel-count { font-size: 1.25rem; }
+.game.four .turn-mark { font-size: 0.75rem; padding: 1px 8px; }
+/* The speech bubble lies over the info column (no spare width in a half panel); its tail points at the avatar. */
+.game.four .bubble-slot {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: calc(6px + var(--avatar-size));
+  right: 4px;
+  z-index: 2;
+  pointer-events: none;
+}
+.game.four .controls { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.game.four .help-btn {
+  position: static;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  border-radius: var(--radius-m);
+}
+
+.color-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+  border-radius: 50%;
+  background: var(--dot);
+  border: 2px solid var(--outline);
+  vertical-align: middle;
+}
+
+/* Four-player disc: one face (owner's picture) in a thick ring of the disc colour. */
+.disc.four .face { border-width: var(--disc-ring-four); }
+.disc.four .face.c-2 { box-shadow: 0 0 0 2px var(--outline); }
+.disc.four.flip4 { z-index: 1; animation: disc-four-flip var(--t-flip) ease-in-out both; }
+@keyframes disc-four-flip {
+  0%, 100% { transform: rotateY(0deg); }
+  50% { transform: rotateY(90deg); }
+}
+.guard {
+  position: absolute;
+  left: 1px;
+  bottom: 1px;
+  z-index: 2;
+  width: 40%;
+  height: 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  background: var(--surface);
+  border: 2px solid var(--outline);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Colour announcement on the pass banner */
+.pass-banner.announce .announce-line { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 1.1rem; line-height: 1.6; }
+
+/* Four-player result list */
+.modal .result-list { list-style: none; margin: 0 0 16px; padding: 0; }
+.result-row {
+  display: grid;
+  grid-template-columns: 2.4em 1.1em minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-s);
+  font-weight: 800;
+}
+.result-row.first { background: var(--turn-bg); }
+.result-rank { font-size: 1.1rem; font-weight: 900; }
+.result-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-color { color: var(--ink-sub); }
+
+/* Landscape four: two panels on each side of the board, one control group under each side. */
+@media (orientation: landscape) {
+  .game.four {
+    /* panel height minus the tag / name / count rows and padding */
+    --avatar-size: clamp(36px, calc((var(--board-size) - var(--controls-h)) / 2 - var(--gap) - 104px), 140px);
+    grid-template-columns: minmax(0, var(--panel-w-max)) var(--board-size) minmax(0, var(--panel-w-max));
+    grid-template-rows: repeat(2, calc((var(--board-size) - var(--controls-h) - 2 * var(--gap)) / 2)) var(--controls-h);
+    grid-template-areas: "tl board tr" "bl board br" "c1 board c2";
+  }
+  /* Top-aligned so the bubble slot below can be placed from the avatar size. */
+  .game.four .char-panel { justify-content: flex-start; gap: 4px; padding: 8px; }
+  .game.four .panel-info { flex: none; max-width: 100%; align-items: center; }
+  /* Under the avatar, at most 4.2em tall so a tall desktop panel keeps the count visible. */
+  .game.four .bubble-slot { top: calc(8px + var(--avatar-size) + 4px); bottom: auto; height: 4.2em; left: 4px; right: 4px; min-height: 0; }
+  .game.four .bubble { margin-left: 0; margin-top: 6px; }
+  .game.four .bubble::before { left: 50%; top: -2px; transform: translate(-50%, -50%) rotate(135deg); }
+  /* .controls is display: contents here, so the help button is a grid item laid over the top-right panel. */
+  .game.four .help-btn {
+    grid-area: tr;
+    align-self: start;
+    justify-self: end;
+    position: relative;
+    z-index: 3;
+    margin: 4px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

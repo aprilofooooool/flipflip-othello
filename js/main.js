@@ -17,6 +17,11 @@
       if (b && !b.disabled && !b.classList.contains('cell')) { Otc.Sound.play('button'); }
     }, true);
 
+    // Four mode: the human seat keys (settings.humans is a count; seats p1..p<humans> are human).
+    function humanSeats(s) {
+      return s && s.mode === 'four' ? ['p1', 'p2', 'p3', 'p4'].slice(0, s.humans) : undefined;
+    }
+
     bus.on('moved', function (e) {
       batch.mover = e.mover;
       Otc.Sound.play('place');
@@ -33,7 +38,7 @@
       batch = { emotions: [], mover: null, over: null, timer: null };
       var emotions = b.emotions.filter(function (x) { return x.emotion !== 'normal'; });
       var s = ctrl.getSettings();
-      var pick = Otc.Reaction.pickEffect(emotions, b.mover, b.over, s ? s.mode : null);
+      var pick = Otc.Reaction.pickEffect(emotions, b.mover, b.over, s ? s.mode : null, humanSeats(s));
       if (!pick) { return; }
       Otc.Effects.play(pick.emotion, Otc.UI.panelEl(pick.player));
       Otc.Sound.play('reaction', { emotion: pick.emotion });
@@ -45,11 +50,14 @@
     bus.on('emotion', function (e) { batch.emotions.push(e); queueFlush(); });
     bus.on('gameover', function (e) {
       if (e.replay) { return; } // undo / redo / restore re-emit gameover silently
-      batch.over = e;
-      queueFlush();
       var s = ctrl.getSettings();
+      var four = !!s && s.mode === 'four';
+      batch.over = four ? { winners: e.winners } : e;
+      queueFlush();
       var name;
-      if (e.winner === null) { name = 'draw'; }
+      if (four) {
+        name = humanSeats(s).some(function (p) { return e.winners.indexOf(p) >= 0; }) ? 'win' : 'lose';
+      } else if (e.winner === null) { name = 'draw'; }
       else if (s && s.mode === 'solo') { name = e.winner === 'p1' ? 'win' : 'lose'; }
       else { name = 'win'; }
       Otc.Sound.play(name);
@@ -59,6 +67,7 @@
       onStart: function (settings) {
         Otc.UI.bindGame(ctrl);
         ctrl.start(settings);
+        Otc.UI.announceColors(); // four mode only; restore never announces
       },
       onResume: function () {
         Otc.UI.bindGame(ctrl);
